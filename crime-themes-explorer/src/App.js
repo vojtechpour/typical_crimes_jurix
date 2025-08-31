@@ -3,9 +3,10 @@ import "./App.css";
 import DataBrowser from "./components/DataBrowser";
 import ScriptRunner from "./components/ScriptRunner";
 import P3Analysis from "./components/P3Analysis";
+import P4AssignThemes from "./components/P4AssignThemes";
 
 function App() {
-  const [currentTab, setCurrentTab] = useState("data"); // data (combined), script, p3
+  const [currentTab, setCurrentTab] = useState("data"); // data (combined), script, p3, p4
   const [loading, setLoading] = useState(false);
   const [specificDataFile, setSpecificDataFile] = useState(null);
 
@@ -45,6 +46,9 @@ function App() {
       case "p3":
         return <P3Analysis />;
 
+      case "p4":
+        return <P4AssignThemes />;
+
       default:
         return null;
     }
@@ -76,6 +80,32 @@ function App() {
           onClick={() => setCurrentTab("p3")}
         >
           🎯 Themes
+        </button>
+      </nav>
+      <nav className="nav-tabs" style={{ marginTop: 12 }}>
+        <button
+          className={`nav-tab ${currentTab === "data" ? "active" : ""}`}
+          onClick={() => setCurrentTab("data")}
+        >
+          📊 Data & Theme Explorer
+        </button>
+        <button
+          className={`nav-tab ${currentTab === "script" ? "active" : ""}`}
+          onClick={() => setCurrentTab("script")}
+        >
+          🐍 Initial Codes
+        </button>
+        <button
+          className={`nav-tab ${currentTab === "p3" ? "active" : ""}`}
+          onClick={() => setCurrentTab("p3")}
+        >
+          🎯 Themes
+        </button>
+        <button
+          className={`nav-tab ${currentTab === "p4" ? "active" : ""}`}
+          onClick={() => setCurrentTab("p4")}
+        >
+          🏁 Assign Final Themes
         </button>
       </nav>
 
