@@ -48,6 +48,7 @@ app.use(express.json());
 const SCRIPT_PATH = "/Users/vojtechpour/projects/typical-crimes/analysis_p2.py";
 const DATA_DIR = "/Users/vojtechpour/projects/typical-crimes/data";
 const UPLOADS_DIR = "/Users/vojtechpour/projects/typical-crimes/uploads";
+const PYTHON_VENV = "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
 
 // Create uploads directory if it doesn't exist
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -61,6 +62,7 @@ const activeProcesses = new Map();
 // Global script management
 let scriptProcess = null;
 let p3ScriptProcess = null; // Add P3 script process tracking
+let p4ScriptProcess = null; // Add P4 script process tracking
 
 // WebSocket connection handling
 wss.on("connection", (ws) => {
@@ -1303,6 +1305,64 @@ app.get("/api/p3/status", (req, res) => {
     p3bRunning: p3bScriptProcess !== null,
     p3bPid: p3bScriptProcess?.pid,
   });
+});
+
+// Phase 4: Assign finalized themes to dataset
+app.post("/api/p4/execute", (req, res) => {
+  if (p4ScriptProcess) {
+    return res.status(400).json({ error: "P4 script is already running" });
+  }
+
+  try {
+    // analysis_p4.py reads its own inputs; no params required
+    const pythonArgs = ["analysis_p4.py"]; // runs from repo root
+
+    // Inform clients
+    broadcast({ type: "p4_script_started", timestamp: new Date().toISOString() });
+
+    p4ScriptProcess = spawn("python3", pythonArgs, {
+      cwd: __dirname + "/../..",
+    });
+
+    p4ScriptProcess.stdout.on("data", (data) => {
+      const text = data.toString();
+      const lines = text.split("\n").filter((l) => l.trim());
+      lines.forEach((line) => {
+        broadcast({ type: "p4_output", text: line, timestamp: new Date().toLocaleTimeString() });
+      });
+    });
+
+    p4ScriptProcess.stderr.on("data", (data) => {
+      broadcast({ type: "p4_script_error", data: data.toString(), timestamp: new Date().toISOString() });
+    });
+
+    p4ScriptProcess.on("close", (code) => {
+      broadcast({ type: code === 0 ? "p4_script_finished" : "p4_script_failed", code, timestamp: new Date().toISOString() });
+      p4ScriptProcess = null;
+    });
+
+    res.json({ success: true, message: "P4 started" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to start P4 script" });
+  }
+});
+
+app.get("/api/p4/status", (req, res) => {
+  res.json({ running: p4ScriptProcess !== null, pid: p4ScriptProcess?.pid });
+});
+
+app.post("/api/p4/stop", (req, res) => {
+  if (!p4ScriptProcess) {
+    return res.status(400).json({ error: "No P4 script is running" });
+  }
+  try {
+    p4ScriptProcess.kill("SIGTERM");
+    p4ScriptProcess = null;
+    broadcast({ type: "p4_script_stopped", timestamp: new Date().toISOString() });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to stop P4" });
+  }
 });
 
 // Stop P3 script
