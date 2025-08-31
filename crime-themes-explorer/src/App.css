@@ -1,11 +1,9 @@
 .App {
   text-align: center;
-  max-width: 1400px;
+  max-width: var(--container-max);
   margin: 0 auto;
-  padding: 20px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-    sans-serif;
+  padding: 24px;
+  font-family: var(--font-sans);
 }
 
 .App-logo {
@@ -20,24 +18,29 @@
 }
 
 .App-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 40px;
-  border-radius: 20px;
-  color: white;
+  background: var(--surface-1);
+  padding: 32px;
+  border-radius: var(--radius-16);
+  color: var(--text);
   margin-bottom: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
 }
 
 .App-header h1 {
-  margin: 0 0 10px 0;
-  font-size: 2.5rem;
+  margin: 0 0 8px 0;
+  font-size: 2.2rem;
   font-weight: 700;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .App-header p {
   margin: 0;
-  font-size: 1.2rem;
-  opacity: 0.9;
+  font-size: 1.05rem;
+  color: var(--text-muted);
 }
 
 .App-link {
@@ -648,36 +651,37 @@
 /* Navigation Tabs */
 .nav-tabs {
   display: flex;
-  background: white;
-  border-radius: 10px;
-  padding: 5px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  background: var(--surface-1);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
   margin-bottom: 30px;
-  gap: 5px;
+  gap: 6px;
 }
 
 .nav-tab {
   flex: 1;
-  padding: 12px 20px;
+  padding: 12px 18px;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   transition: all 0.2s ease;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .nav-tab:hover {
-  background: #f8f9fa;
-  color: #333;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .nav-tab.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  background: var(--brand-600);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
 }
 
 /* Mode Selector for Data Browser */
