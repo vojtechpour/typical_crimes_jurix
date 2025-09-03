@@ -37,6 +37,7 @@ const ScriptRunner = () => {
   const [globalInstructions, setGlobalInstructions] = useState(""); // Global instructions for all analysis
   const [bulkRegenerating, setBulkRegenerating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(null);
+  const [model, setModel] = useState("gemini-2.0-flash");
 
   const wsRef = useRef(null);
   const outputRef = useRef(null);
@@ -300,6 +301,9 @@ const ScriptRunner = () => {
   const startScript = async () => {
     try {
       setError(null);
+      try {
+        console.log(`[AI] Starting Phase 2 analysis with model: ${model}`);
+      } catch {}
       const response = await fetch("/api/script/execute", {
         method: "POST",
         headers: {
@@ -307,6 +311,7 @@ const ScriptRunner = () => {
         },
         body: JSON.stringify({
           globalInstructions: globalInstructions.trim(),
+          model,
         }),
       });
 
@@ -404,9 +409,98 @@ const ScriptRunner = () => {
     }
   };
 
+  const handleDeleteSelectedFile = async () => {
+    if (!selectedDataFile) return;
+    const confirmDelete = window.confirm(
+      `Delete file "${selectedDataFile}" from uploads? This cannot be undone.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const response = await fetch(`/api/data/${selectedDataFile}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+      const result = await response.json();
+      if (response.ok) {
+        addOutput(`🗑️ Deleted file ${selectedDataFile}`, "warning");
+        setSelectedDataFile("");
+        setAnalysisStatus((prev) => ({
+          ...prev,
+          totalCases: 0,
+          processedCases: 0,
+          uniqueCodesCount: 0,
+          recentCompletions: [],
+          currentDataFile: null,
+        }));
+        await loadAvailableFiles();
+      } else {
+        throw new Error(result.error || "Failed to delete file");
+      }
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      addOutput(`❌ Failed to delete file: ${error.message}`, "error");
+    }
+  };
+
+  const handleDeleteAllCodes = async () => {
+    const currentFile = analysisStatus.currentDataFile || selectedDataFile;
+    if (!currentFile) {
+      addOutput("❌ No data file selected", "error");
+      return;
+    }
+    const filename = currentFile.includes("/")
+      ? currentFile.split("/").pop()
+      : currentFile;
+
+    const confirmed = window.confirm(
+      `Delete all initial codes in "${filename}"? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/data/${filename}/codes`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || "Failed to delete codes");
+      }
+
+      addOutput(
+        `🗑️ Deleted initial codes in ${result.casesCleared} cases from ${filename}`,
+        "warning"
+      );
+
+      // Clear UI state of generated codes
+      setAnalysisStatus((prev) => ({
+        ...prev,
+        processedCases: 0,
+        uniqueCodesCount: 0,
+        recentCompletions: [],
+      }));
+
+      // Reload existing codes to reflect cleared state
+      if (filename) {
+        await loadExistingCodes(filename);
+      }
+    } catch (error) {
+      console.error("Failed to delete all codes:", error);
+      addOutput(`❌ Failed to delete all codes: ${error.message}`, "error");
+    }
+  };
+
   const startScriptWithFile = async (filename = null) => {
     try {
       setError(null);
+      try {
+        console.log(
+          `[AI] Starting Phase 2 analysis for file ${
+            filename || "(default)"
+          } with model: ${model}`
+        );
+      } catch {}
       const response = await fetch("/api/script/execute", {
         method: "POST",
         headers: {
@@ -415,6 +509,7 @@ const ScriptRunner = () => {
         body: JSON.stringify({
           dataFile: filename,
           globalInstructions: globalInstructions.trim(),
+          model,
         }),
       });
 
@@ -978,6 +1073,11 @@ const ScriptRunner = () => {
         : currentFile;
 
       addOutput(`🔄 Regenerating codes for case ${caseId}...`, "info");
+      try {
+        console.log(
+          `[AI] Regenerating single case ${caseId} with model: ${model}`
+        );
+      } catch {}
 
       // Send regeneration request to server
       const response = await fetch(
@@ -987,7 +1087,10 @@ const ScriptRunner = () => {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ instructions: regenerateInstructions.trim() }),
+          body: JSON.stringify({
+            instructions: regenerateInstructions.trim(),
+            model,
+          }),
         }
       );
 
@@ -1010,14 +1113,14 @@ const ScriptRunner = () => {
         }));
 
         const methodUsed = regenerateInstructions.trim()
-          ? "with custom instructions"
-          : "using best practices";
+          ? `with custom instructions using model: ${model}`
+          : `using best practices with model: ${model}`;
         addOutput(
           `✅ Successfully regenerated codes for case ${caseId} ${methodUsed}`,
           "success"
         );
         console.log(
-          `Successfully regenerated codes for case ${caseId}:`,
+          `Successfully regenerated codes for case ${caseId} (model: ${model}):`,
           result.codes
         );
       } else {
@@ -1130,52 +1233,53 @@ const ScriptRunner = () => {
 
   return (
     <div className="script-runner">
-      {/* Control Panel */}
-      <div className="runner-controls">
-        <div className="control-buttons">
-          <button
-            onClick={startScript}
-            disabled={isRunning}
-            className={`control-button start-button ${
-              isRunning ? "disabled" : ""
-            }`}
+      {/* Controls */}
+      <div className="toolbar">
+        <button
+          onClick={startScript}
+          disabled={isRunning}
+          className="btn primary"
+        >
+          {isRunning ? "Running..." : "Start analysis"}
+        </button>
+        <button
+          onClick={stopScript}
+          disabled={!isRunning}
+          className="btn danger"
+        >
+          Stop
+        </button>
+        <button onClick={clearOutput} className="btn subtle">
+          Clear output
+        </button>
+        <button onClick={fetchResults} className="btn subtle">
+          Refresh results
+        </button>
+        <div className="row" style={{ alignItems: "center" }}>
+          <label htmlFor="model-select" className="muted">
+            Model
+          </label>
+          <select
+            id="model-select"
+            className="select"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
           >
-            {isRunning ? "🔄 Running..." : "▶️ Start Analysis"}
-          </button>
-
-          <button
-            onClick={stopScript}
-            disabled={!isRunning}
-            className={`control-button stop-button ${
-              !isRunning ? "disabled" : ""
-            }`}
-          >
-            ⏹️ Stop
-          </button>
-
-          <button onClick={clearOutput} className="control-button clear-button">
-            🗑️ Clear Output
-          </button>
-
-          <button
-            onClick={fetchResults}
-            className="control-button refresh-button"
-          >
-            🔄 Refresh Results
-          </button>
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
+            <option value="gpt-5-mini-2025-08-07">gpt-5-mini-2025-08-07</option>
+            <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07</option>
+          </select>
         </div>
-
-        {/* Status Display */}
-        <div className="status-display">
-          <div
-            className={`status-indicator ${isRunning ? "running" : "stopped"}`}
-          >
-            {isRunning ? "🟢 Running" : "⚪ Stopped"}
-          </div>
-          {duration > 0 && (
-            <div className="duration">⏱️ {formatDuration(duration)}</div>
-          )}
-        </div>
+        <span className="spacer" />
+        <span className="badge">{isRunning ? "Running" : "Stopped"}</span>
+        {duration > 0 && (
+          <span className="badge info" title="Elapsed time">
+            {formatDuration(duration)}
+          </span>
+        )}
       </div>
 
       {/* Progress Bar */}
@@ -1197,77 +1301,69 @@ const ScriptRunner = () => {
       )}
 
       {/* Error Display */}
-      {error && <div className="error-display">❌ {error}</div>}
+      {error && <div className="badge warning">{error}</div>}
 
       {/* File Selection Section */}
-      <div className="file-selection-section">
-        <h3>📁 Select Data File for Analysis</h3>
-
-        {availableFiles.length === 0 ? (
-          <div className="no-files-available">
-            <p>📤 No files available for analysis.</p>
-            <p>
-              <button
-                onClick={() =>
-                  window.dispatchEvent(new CustomEvent("switchToDataBrowser"))
-                }
-                className="browse-file-button"
-              >
-                📊 Go to Data Browser to Upload Files
-              </button>
-            </p>
-          </div>
-        ) : (
-          <div className="file-selector">
-            <div className="selector-group">
-              <label htmlFor="file-select">Choose a file to analyze:</label>
-              <select
-                id="file-select"
-                value={selectedDataFile}
-                onChange={(e) => {
-                  const filename = e.target.value;
-                  setSelectedDataFile(filename);
-                  if (filename) {
-                    loadExistingCodes(filename);
-                  } else {
-                    // Clear existing codes if no file selected
-                    setAnalysisStatus((prev) => ({
-                      ...prev,
-                      totalCases: 0,
-                      processedCases: 0,
-                      uniqueCodesCount: 0,
-                      recentCompletions: [],
-                      currentDataFile: null,
-                    }));
+      <section className="card">
+        <div className="card-header row">
+          <h3>Select data file for analysis</h3>
+        </div>
+        <div className="card-body">
+          {availableFiles.length === 0 ? (
+            <div className="no-files-available">
+              <p>No files available for analysis.</p>
+              <p>
+                <button
+                  onClick={() =>
+                    window.dispatchEvent(new CustomEvent("switchToDataBrowser"))
                   }
-                }}
-                className="file-select"
-              >
-                <option value="">-- Select a file --</option>
-                {availableFiles.map((file) => (
-                  <option key={file.name} value={file.name}>
-                    {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                  </option>
-                ))}
-              </select>
+                  className="btn subtle"
+                >
+                  Go to Data Browser to upload files
+                </button>
+              </p>
             </div>
-
-            {selectedDataFile && (
-              <div className="selected-file-info">
-                <p>
-                  ✅ Ready to analyze: <strong>{selectedDataFile}</strong>
-                </p>
-                <div className="analysis-buttons">
+          ) : (
+            <div className="row" style={{ alignItems: "end", gap: 12 }}>
+              <div className="selector-group" style={{ minWidth: 320 }}>
+                <label htmlFor="file-select">Choose a file to analyze</label>
+                <select
+                  id="file-select"
+                  value={selectedDataFile}
+                  onChange={(e) => {
+                    const filename = e.target.value;
+                    setSelectedDataFile(filename);
+                    if (filename) {
+                      loadExistingCodes(filename);
+                    } else {
+                      setAnalysisStatus((prev) => ({
+                        ...prev,
+                        totalCases: 0,
+                        processedCases: 0,
+                        uniqueCodesCount: 0,
+                        recentCompletions: [],
+                        currentDataFile: null,
+                      }));
+                    }
+                  }}
+                  className="select"
+                >
+                  <option value="">-- Select a file --</option>
+                  {availableFiles.map((file) => (
+                    <option key={file.name} value={file.name}>
+                      {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedDataFile && (
+                <div className="row" style={{ gap: 8 }}>
                   <button
                     onClick={() => startScriptWithFile(selectedDataFile)}
                     disabled={isRunning}
-                    className={`control-button start-button ${
-                      isRunning ? "disabled" : ""
-                    }`}
+                    className="btn primary"
                   >
-                    {isRunning
-                      ? "🔄 Running..."
-                      : "▶️ Start Analysis with This File"}
+                    {isRunning ? "Running..." : "Start with this file"}
                   </button>
                   <button
                     onClick={() =>
@@ -1277,416 +1373,360 @@ const ScriptRunner = () => {
                         })
                       )
                     }
-                    className="browse-file-button"
+                    className="btn subtle"
                   >
-                    📊 Browse This File
+                    Browse this file
+                  </button>
+                  <button
+                    onClick={handleDeleteSelectedFile}
+                    disabled={isRunning}
+                    className="btn danger"
+                    title="Delete this uploaded file"
+                  >
+                    Delete file
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Global Instructions Section */}
+      <section className="card">
+        <div className="card-header row">
+          <h3>Code generation instructions</h3>
+        </div>
+        <div className="card-body">
+          <div className="instructions-container">
+            <div className="instruction-examples-global">
+              <p>
+                <strong>Example instructions:</strong>
+              </p>
+              <div className="examples-grid">
+                {[
+                  "Focus on victim characteristics",
+                  "Emphasize environmental factors",
+                  "Use specific crime terminology",
+                  "Highlight offender behavior patterns",
+                  "Create detailed, specific codes",
+                  "Focus on temporal aspects",
+                ].map((ex) => (
+                  <button
+                    key={ex}
+                    type="button"
+                    className="badge"
+                    onClick={() => handleExampleClick(ex)}
+                    title={ex}
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <textarea
+              value={globalInstructions}
+              onChange={(e) => setGlobalInstructions(e.target.value)}
+              placeholder="Enter your instructions for code generation across all cases, or leave blank to use comprehensive best practices..."
+              className="global-instructions-textarea"
+              rows={3}
+            />
+
+            <div className="row" style={{ gap: 8 }}>
+              {globalInstructions.trim() ? (
+                <span className="badge success">Using custom instructions</span>
+              ) : (
+                <span className="badge info">
+                  Using comprehensive best practices
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Analysis Progress */}
+      <section className="card">
+        <div className="card-header row">
+          <h3>Progress</h3>
+        </div>
+        <div className="card-body">
+          <div className="progress-overview">
+            <div className="progress-ring-container">
+              <div className="progress-ring">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="50"
+                    fill="transparent"
+                    strokeWidth="8"
+                    style={{ stroke: "var(--border)" }}
+                  />
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="50"
+                    fill="transparent"
+                    strokeWidth="8"
+                    style={{ stroke: "var(--accent-500)" }}
+                    strokeDasharray={`${2 * Math.PI * 50}`}
+                    strokeDashoffset={`${
+                      2 *
+                      Math.PI *
+                      50 *
+                      (1 -
+                        analysisStatus.processedCases /
+                          Math.max(analysisStatus.totalCases, 1))
+                    }`}
+                    strokeLinecap="round"
+                    transform="rotate(-90 60 60)"
+                    className="progress-circle"
+                  />
+                </svg>
+                <div className="progress-text">
+                  <div className="progress-percentage">
+                    {analysisStatus.totalCases > 0
+                      ? Math.round(
+                          (analysisStatus.processedCases /
+                            analysisStatus.totalCases) *
+                            100
+                        )
+                      : 0}
+                    %
+                  </div>
+                  <div className="progress-label">Complete</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="progress-stats-grid">
+              <div className="stat-item">
+                <div className="stat-number">
+                  {analysisStatus.processedCases}
+                </div>
+                <div className="stat-label">Processed</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-number">{analysisStatus.totalCases}</div>
+                <div className="stat-label">Total Cases</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-number">
+                  {analysisStatus.uniqueCodesCount}
+                </div>
+                <div className="stat-label">Unique Codes</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-number">{analysisStatus.apiCalls}</div>
+                <div className="stat-label">API Calls</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Current processing */}
+          {analysisStatus.phase === "Processing Cases" &&
+            analysisStatus.currentCase && (
+              <div className="current-processing">
+                <h4>Currently processing</h4>
+                <div className="current-case">
+                  <span className="case-label">Case ID:</span>
+                  <span className="case-id">{analysisStatus.currentCase}</span>
+                  <span className="case-progress">
+                    ({analysisStatus.currentBatch} of{" "}
+                    {analysisStatus.totalCases})
+                  </span>
+                </div>
+                <div className="processing-indicator">
+                  <div className="pulse-dot"></div>
+                  <span>Generating initial codes…</span>
+                </div>
+              </div>
+            )}
+
+          {/* Live code generation */}
+          {analysisStatus.recentCompletions.length > 0 && (
+            <div className="live-codes-section">
+              <div className="section-header">
+                <h4>
+                  Generated codes{" "}
+                  {analysisStatus.recentCompletions.length > 0
+                    ? `(${analysisStatus.recentCompletions.length})`
+                    : ""}
+                </h4>
+                <div className="codes-actions">
+                  <button
+                    className="btn subtle"
+                    onClick={downloadGeneratedCodes}
+                  >
+                    Export codes
+                  </button>
+                  <button
+                    className="btn danger"
+                    onClick={handleDeleteAllCodes}
+                    disabled={
+                      isRunning ||
+                      (!selectedDataFile && !analysisStatus.currentDataFile)
+                    }
+                    title="Delete all initial codes in this file"
+                  >
+                    Delete all codes
                   </button>
                 </div>
               </div>
-            )}
-          </div>
-        )}
-      </div>
 
-      {/* Global Instructions Section */}
-      <div className="global-instructions-section">
-        <h3>📝 Code Generation Instructions</h3>
-        <p className="section-description">
-          Provide instructions to guide how initial codes should be generated
-          throughout the analysis. These instructions will be applied to all
-          cases during processing.
-        </p>
-
-        <div className="instructions-container">
-          <div className="instruction-examples-global">
-            <p>
-              <strong>Example instructions:</strong>
-            </p>
-            <div className="examples-grid">
-              <span
-                className="example-tag"
-                onClick={() =>
-                  handleExampleClick("Focus on victim characteristics")
-                }
-              >
-                "Focus on victim characteristics"
-              </span>
-              <span
-                className="example-tag"
-                onClick={() =>
-                  handleExampleClick("Emphasize environmental factors")
-                }
-              >
-                "Emphasize environmental factors"
-              </span>
-              <span
-                className="example-tag"
-                onClick={() =>
-                  handleExampleClick("Use specific crime terminology")
-                }
-              >
-                "Use specific crime terminology"
-              </span>
-              <span
-                className="example-tag"
-                onClick={() =>
-                  handleExampleClick("Highlight offender behavior patterns")
-                }
-              >
-                "Highlight offender behavior patterns"
-              </span>
-              <span
-                className="example-tag"
-                onClick={() =>
-                  handleExampleClick("Create detailed, specific codes")
-                }
-              >
-                "Create detailed, specific codes"
-              </span>
-              <span
-                className="example-tag"
-                onClick={() => handleExampleClick("Focus on temporal aspects")}
-              >
-                "Focus on temporal aspects"
-              </span>
-            </div>
-          </div>
-
-          <textarea
-            value={globalInstructions}
-            onChange={(e) => setGlobalInstructions(e.target.value)}
-            placeholder="Enter your instructions for code generation across all cases, or leave blank to use comprehensive best practices..."
-            className="global-instructions-textarea"
-            rows={3}
-          />
-
-          <div className="instructions-status">
-            {globalInstructions.trim() ? (
-              <span className="status-custom">
-                🎯 Using custom instructions
-              </span>
-            ) : (
-              <span className="status-default">
-                🔄 Using comprehensive best practices
-              </span>
-            )}
-          </div>
-
-          {/* Bulk Regeneration Section */}
-          {selectedDataFile && analysisStatus.processedCases > 0 && (
-            <div className="bulk-regeneration-section">
-              <div className="bulk-regeneration-info">
-                <p>
-                  <strong>Bulk Regeneration:</strong> Apply current instructions
-                  to all {analysisStatus.processedCases} existing codes
-                </p>
+              <div className="codes-list">
+                {analysisStatus.recentCompletions
+                  .slice(0, 10)
+                  .map((completion, index) => (
+                    <CodeGenerationItem
+                      key={completion.caseId}
+                      completion={completion}
+                      onEdit={handleCodeEdit}
+                      onSave={handleCodeSave}
+                      onRegenerate={handleRegenerateRequest}
+                      isSaving={savingCodes[completion.caseId] || false}
+                      isRegenerating={
+                        regeneratingCodes[completion.caseId] || false
+                      }
+                    />
+                  ))}
               </div>
 
-              {bulkProgress && (
-                <div className="bulk-progress">
-                  <div className="bulk-progress-text">
-                    {bulkProgress.status} ({bulkProgress.current}/
-                    {bulkProgress.total})
-                    {bulkProgress.currentCaseId && (
-                      <div className="current-case-info">
-                        Processing: Case {bulkProgress.currentCaseId}
-                      </div>
-                    )}
-                  </div>
-                  <div className="bulk-progress-bar">
-                    <div
-                      className="bulk-progress-fill"
-                      style={{
-                        width:
-                          bulkProgress.total > 0
-                            ? `${
-                                (bulkProgress.current / bulkProgress.total) *
-                                100
-                              }%`
-                            : "0%",
-                      }}
-                    ></div>
-                  </div>
-                  <div className="bulk-progress-percentage">
-                    {bulkProgress.total > 0
-                      ? Math.round(
-                          (bulkProgress.current / bulkProgress.total) * 100
-                        )
-                      : 0}
-                    % Complete
-                  </div>
+              {analysisStatus.recentCompletions.length > 10 && (
+                <div className="more-codes-indicator">
+                  <span>
+                    + {analysisStatus.recentCompletions.length - 10} more
+                    completed cases
+                  </span>
+                  <button
+                    className="view-all-btn"
+                    onClick={() => setShowAllCodes(true)}
+                  >
+                    View All Generated Codes
+                  </button>
                 </div>
               )}
-
-              <button
-                onClick={handleBulkRegenerate}
-                disabled={bulkRegenerating || !globalInstructions.trim()}
-                className="bulk-regenerate-btn"
-                title={
-                  !globalInstructions.trim()
-                    ? "Enter instructions first"
-                    : "Regenerate all existing codes with current instructions"
-                }
-              >
-                {bulkRegenerating
-                  ? "🔄 Regenerating All..."
-                  : "🔄 Regenerate All Existing Codes"}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Interactive Analysis Interface */}
-      <div className="analysis-interface">
-        {/* Progress Overview */}
-        <div className="progress-overview">
-          <div className="progress-ring-container">
-            <div className="progress-ring">
-              <svg width="120" height="120" viewBox="0 0 120 120">
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="50"
-                  stroke="#e0e0e0"
-                  strokeWidth="8"
-                  fill="transparent"
-                />
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="50"
-                  stroke="#4caf50"
-                  strokeWidth="8"
-                  fill="transparent"
-                  strokeDasharray={`${2 * Math.PI * 50}`}
-                  strokeDashoffset={`${
-                    2 *
-                    Math.PI *
-                    50 *
-                    (1 -
-                      analysisStatus.processedCases /
-                        Math.max(analysisStatus.totalCases, 1))
-                  }`}
-                  strokeLinecap="round"
-                  transform="rotate(-90 60 60)"
-                  className="progress-circle"
-                />
-              </svg>
-              <div className="progress-text">
-                <div className="progress-percentage">
-                  {analysisStatus.totalCases > 0
-                    ? Math.round(
-                        (analysisStatus.processedCases /
-                          analysisStatus.totalCases) *
-                          100
-                      )
-                    : 0}
-                  %
-                </div>
-                <div className="progress-label">Complete</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="progress-stats-grid">
-            <div className="stat-item">
-              <div className="stat-number">{analysisStatus.processedCases}</div>
-              <div className="stat-label">Processed</div>
-            </div>
-            <div className="stat-item">
-              <div className="stat-number">{analysisStatus.totalCases}</div>
-              <div className="stat-label">Total Cases</div>
-            </div>
-            <div className="stat-item">
-              <div className="stat-number">
-                {analysisStatus.uniqueCodesCount}
-              </div>
-              <div className="stat-label">Unique Codes</div>
-            </div>
-            <div className="stat-item">
-              <div className="stat-number">{analysisStatus.apiCalls}</div>
-              <div className="stat-label">API Calls</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Current Processing Status */}
-        {analysisStatus.phase === "Processing Cases" &&
-          analysisStatus.currentCase && (
-            <div className="current-processing">
-              <h4>🔄 Currently Processing</h4>
-              <div className="current-case">
-                <span className="case-label">Case ID:</span>
-                <span className="case-id">{analysisStatus.currentCase}</span>
-                <span className="case-progress">
-                  ({analysisStatus.currentBatch} of {analysisStatus.totalCases})
-                </span>
-              </div>
-              <div className="processing-indicator">
-                <div className="pulse-dot"></div>
-                <span>Generating initial codes...</span>
-              </div>
             </div>
           )}
 
-        {/* Live Code Generation Display */}
-        {analysisStatus.recentCompletions.length > 0 && (
-          <div className="live-codes-section">
-            <div className="section-header">
-              <h4>
-                🏷️ Generated Codes{" "}
-                {analysisStatus.recentCompletions.length > 0
-                  ? `(${analysisStatus.recentCompletions.length})`
-                  : ""}
-              </h4>
-              <div className="codes-actions">
-                <button className="action-btn" onClick={downloadGeneratedCodes}>
-                  📥 Export Codes
-                </button>
-              </div>
-            </div>
-
-            <div className="codes-list">
-              {analysisStatus.recentCompletions
-                .slice(0, 10)
-                .map((completion, index) => (
-                  <CodeGenerationItem
-                    key={completion.caseId}
-                    completion={completion}
-                    onEdit={handleCodeEdit}
-                    onSave={handleCodeSave}
-                    onRegenerate={handleRegenerateRequest}
-                    isSaving={savingCodes[completion.caseId] || false}
-                    isRegenerating={
-                      regeneratingCodes[completion.caseId] || false
-                    }
-                  />
-                ))}
-            </div>
-
-            {analysisStatus.recentCompletions.length > 10 && (
-              <div className="more-codes-indicator">
-                <span>
-                  + {analysisStatus.recentCompletions.length - 10} more
-                  completed cases
-                </span>
-                <button
-                  className="view-all-btn"
-                  onClick={() => setShowAllCodes(true)}
-                >
-                  View All Generated Codes
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Regeneration Modal */}
-        {showRegenerateModal && regenerateModalData && (
-          <div className="modal-overlay">
-            <div className="modal-content regenerate-modal">
-              <div className="modal-header">
-                <h3>
-                  🔄 Regenerate Codes for Case {regenerateModalData.caseId}
-                </h3>
-              </div>
-              <div className="modal-body">
-                <div className="case-preview">
-                  <h4>📄 Case Text:</h4>
-                  <p className="case-text-preview">
-                    {regenerateModalData.caseText?.substring(0, 300)}
-                    {regenerateModalData.caseText?.length > 300 ? "..." : ""}
-                  </p>
+          {/* Regeneration Modal */}
+          {showRegenerateModal && regenerateModalData && (
+            <div className="modal-overlay">
+              <div className="modal-content regenerate-modal">
+                <div className="modal-header">
+                  <h3>
+                    🔄 Regenerate Codes for Case {regenerateModalData.caseId}
+                  </h3>
                 </div>
-
-                <div className="current-codes">
-                  <h4>🏷️ Current Codes:</h4>
-                  <div className="current-codes-display">
-                    {(() => {
-                      try {
-                        const codes = JSON.parse(
-                          regenerateModalData.currentCodes
-                        );
-                        return Array.isArray(codes) ? codes.join(", ") : codes;
-                      } catch (e) {
-                        return regenerateModalData.currentCodes;
-                      }
-                    })()}
-                  </div>
-                </div>
-
-                <div className="instructions-input">
-                  <h4>📝 Regeneration Instructions:</h4>
-                  <p className="instructions-help">
-                    Provide specific instructions for how you want the codes to
-                    be generated. The AI will prioritize your guidance while
-                    ensuring accuracy. Leave blank for comprehensive automatic
-                    coding.
-                  </p>
-
-                  <div className="instruction-examples">
-                    <p>
-                      <strong>Examples of useful instructions:</strong>
+                <div className="modal-body">
+                  <div className="case-preview">
+                    <h4>📄 Case Text:</h4>
+                    <p className="case-text-preview">
+                      {regenerateModalData.caseText?.substring(0, 300)}
+                      {regenerateModalData.caseText?.length > 300 ? "..." : ""}
                     </p>
-                    <ul className="example-list">
-                      <li>
-                        "Focus more on victim characteristics and vulnerability
-                        factors"
-                      </li>
-                      <li>
-                        "Use more specific terminology for the type of
-                        theft/crime"
-                      </li>
-                      <li>"Emphasize environmental and contextual factors"</li>
-                      <li>
-                        "Create codes that highlight offender behavior patterns"
-                      </li>
-                      <li>
-                        "Generate fewer, more general codes" or "Create more
-                        detailed, specific codes"
-                      </li>
-                      <li>
-                        "Focus on temporal aspects and timing of the crime"
-                      </li>
-                    </ul>
                   </div>
 
-                  <textarea
-                    value={regenerateInstructions}
-                    onChange={(e) => setRegenerateInstructions(e.target.value)}
-                    placeholder="Enter your specific instructions here, or leave blank for comprehensive automatic coding based on best practices..."
-                    className="instructions-textarea"
-                    rows={4}
-                    autoFocus
-                  />
+                  <div className="current-codes">
+                    <h4>🏷️ Current Codes:</h4>
+                    <div className="current-codes-display">
+                      {(() => {
+                        try {
+                          const codes = JSON.parse(
+                            regenerateModalData.currentCodes
+                          );
+                          return Array.isArray(codes)
+                            ? codes.join(", ")
+                            : codes;
+                        } catch (e) {
+                          return regenerateModalData.currentCodes;
+                        }
+                      })()}
+                    </div>
+                  </div>
 
-                  <div className="instruction-tip">
-                    💡 <strong>Tip:</strong> The more specific your
-                    instructions, the better the AI can tailor the codes to your
-                    research needs.
+                  <div className="instructions-input">
+                    <h4>📝 Regeneration Instructions:</h4>
+                    <p className="instructions-help">
+                      Provide specific instructions for how you want the codes
+                      to be generated. The AI will prioritize your guidance
+                      while ensuring accuracy. Leave blank for comprehensive
+                      automatic coding.
+                    </p>
+
+                    <div className="instruction-examples">
+                      <p>
+                        <strong>Examples of useful instructions:</strong>
+                      </p>
+                      <ul className="example-list">
+                        <li>
+                          "Focus more on victim characteristics and
+                          vulnerability factors"
+                        </li>
+                        <li>
+                          "Use more specific terminology for the type of
+                          theft/crime"
+                        </li>
+                        <li>
+                          "Emphasize environmental and contextual factors"
+                        </li>
+                        <li>
+                          "Create codes that highlight offender behavior
+                          patterns"
+                        </li>
+                        <li>
+                          "Generate fewer, more general codes" or "Create more
+                          detailed, specific codes"
+                        </li>
+                        <li>
+                          "Focus on temporal aspects and timing of the crime"
+                        </li>
+                      </ul>
+                    </div>
+
+                    <textarea
+                      value={regenerateInstructions}
+                      onChange={(e) =>
+                        setRegenerateInstructions(e.target.value)
+                      }
+                      placeholder="Enter your specific instructions here, or leave blank for comprehensive automatic coding based on best practices..."
+                      className="instructions-textarea"
+                      rows={4}
+                      autoFocus
+                    />
+
+                    <div className="instruction-tip">
+                      💡 <strong>Tip:</strong> The more specific your
+                      instructions, the better the AI can tailor the codes to
+                      your research needs.
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="modal-actions">
-                <button onClick={handleRegenerateCancel} className="cancel-btn">
-                  Cancel
-                </button>
-                <button
-                  onClick={handleRegenerateSubmit}
-                  className="regenerate-confirm-btn"
-                  disabled={false}
-                >
-                  🔄{" "}
-                  {regenerateInstructions.trim()
-                    ? "Regenerate with Instructions"
-                    : "Regenerate with Best Practices"}
-                </button>
+                <div className="modal-actions">
+                  <button
+                    onClick={handleRegenerateCancel}
+                    className="cancel-btn"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleRegenerateSubmit}
+                    className="regenerate-confirm-btn"
+                    disabled={false}
+                  >
+                    🔄{" "}
+                    {regenerateInstructions.trim()
+                      ? "Regenerate with Instructions"
+                      : "Regenerate with Best Practices"}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </section>
 
       {/* Results Section */}
       {results && (

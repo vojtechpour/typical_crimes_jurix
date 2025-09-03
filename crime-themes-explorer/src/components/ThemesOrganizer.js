@@ -31,6 +31,11 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState(null);
   const [showAiSuggestions, setShowAiSuggestions] = useState(false);
+  // AI settings (model + reasoning + verbosity)
+  const [useGpt5, setUseGpt5] = useState(false);
+  const [aiModel, setAiModel] = useState("gpt-5"); // gpt-5 | gpt-5-mini | gpt-5-nano
+  const [reasoningEffort, setReasoningEffort] = useState("medium"); // minimal | low | medium | high
+  const [verbosity, setVerbosity] = useState("medium"); // low | medium | high
 
   // Helper function to add a change to the tracker
   const addChange = (type, description, details = {}) => {
@@ -130,6 +135,8 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
             break;
           case "main_theme":
             await revertMainThemeChange(change.details);
+            break;
+          default:
             break;
         }
       }
@@ -631,7 +638,13 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
       const newSuggestions = await generateAiSuggestions(
         changesContext,
         currentThemes,
-        instructionsToUse
+        instructionsToUse,
+        {
+          useGpt5,
+          model: aiModel,
+          reasoningEffort,
+          verbosity,
+        }
       );
 
       if (isFollowUp) {
@@ -1010,6 +1023,16 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
         onApplySuggestion={applySuggestion}
         onRejectSuggestion={rejectSuggestion}
         changesCount={changes.filter((c) => !c.reverted).length}
+        aiSettings={{
+          useGpt5,
+          model: aiModel,
+          reasoningEffort,
+          verbosity,
+          setUseGpt5,
+          setAiModel,
+          setReasoningEffort,
+          setVerbosity,
+        }}
       />
     </div>
   );

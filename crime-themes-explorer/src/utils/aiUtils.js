@@ -2,7 +2,8 @@
 export const generateAiSuggestions = async (
   changesContext,
   currentThemes,
-  userInstructions
+  userInstructions,
+  aiSettings = null
 ) => {
   try {
     // Prepare the data for AI analysis
@@ -155,6 +156,16 @@ IMPORTANT:
 
 Only return the JSON object, no additional text.`;
 
+    // Log model being used for AI suggestions
+    try {
+      const modelLabel = aiSettings?.useGpt5
+        ? aiSettings?.model || "gpt-5"
+        : "claude-3-5-sonnet-20241022";
+      console.log(
+        `[AI] Generating theme suggestions with model: ${modelLabel}`
+      );
+    } catch {}
+
     // Call OpenAI API
     const response = await fetch("/api/ai-suggestions", {
       method: "POST",
@@ -164,6 +175,7 @@ Only return the JSON object, no additional text.`;
       body: JSON.stringify({
         prompt: prompt,
         themeData: themeAnalysis,
+        aiSettings: aiSettings,
       }),
     });
 

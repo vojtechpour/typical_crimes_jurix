@@ -48,7 +48,8 @@ app.use(express.json());
 const SCRIPT_PATH = "/Users/vojtechpour/projects/typical-crimes/analysis_p2.py";
 const DATA_DIR = "/Users/vojtechpour/projects/typical-crimes/data";
 const UPLOADS_DIR = "/Users/vojtechpour/projects/typical-crimes/uploads";
-const PYTHON_VENV = "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
+const PYTHON_VENV =
+  "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
 
 // Create uploads directory if it doesn't exist
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -171,7 +172,7 @@ app.get("/api/script/status", (req, res) => {
 // Execute Python script
 app.post("/api/script/execute", (req, res) => {
   const processId = "analysis_p2";
-  const { dataFile, globalInstructions } = req.body; // Get both filename and global instructions
+  const { dataFile, globalInstructions, model } = req.body; // Include model selection
 
   // Check if script is already running
   if (activeProcesses.has(processId)) {
@@ -206,10 +207,26 @@ app.post("/api/script/execute", (req, res) => {
       console.log("Using default best practices prompting");
     }
 
+    // Determine provider from model selection
+    // Default to Gemini if not specified or starts with "gemini"
+    let provider = "gemini";
+    let envVars = { ...process.env };
+    if (model && typeof model === "string") {
+      if (model.startsWith("gpt-")) {
+        provider = "openai";
+        envVars.OPENAI_MODEL = model; // analysis script can read this if using OpenAI
+      } else {
+        provider = "gemini";
+        envVars.GEMINI_MODEL = model; // analysis script will read GEMINI_MODEL
+      }
+    }
+    envVars.MODEL_PROVIDER = provider; // tell analysis script which provider to use
+
     // Spawn Python process using the virtual environment
     const pythonProcess = spawn(pythonExe, scriptArgs, {
       cwd: scriptDir,
       stdio: ["pipe", "pipe", "pipe"],
+      env: envVars,
     });
 
     // Store process reference
@@ -649,6 +666,56 @@ app.get("/api/data/:filename/codes", (req, res) => {
   }
 });
 
+// Delete all initial codes in a data file
+app.delete("/api/data/:filename/codes", (req, res) => {
+  try {
+    const { filename } = req.params;
+    const filePath = path.join(UPLOADS_DIR, filename);
+
+    // Security check
+    if (!filePath.startsWith(UPLOADS_DIR)) {
+      return res.status(400).json({ error: "Invalid file path" });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+    const totalCases = Object.keys(data).length;
+    let removedCount = 0;
+
+    for (const [caseId, caseData] of Object.entries(data)) {
+      if (
+        caseData &&
+        Object.prototype.hasOwnProperty.call(caseData, "initial_code_0")
+      ) {
+        delete caseData.initial_code_0;
+        removedCount += 1;
+      }
+    }
+
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+
+    console.log(
+      `Deleted initial codes from ${removedCount}/${totalCases} cases in ${filename}`
+    );
+
+    res.json({
+      success: true,
+      message: `Deleted codes in ${removedCount} cases`,
+      filename,
+      totalCases,
+      casesCleared: removedCount,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error deleting codes:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Regenerate codes for a specific case using custom instructions
 app.post("/api/data/:filename/case/:caseId/regenerate", (req, res) => {
   try {
@@ -1020,13 +1087,17 @@ app.post("/api/p3/execute", (req, res) => {
   }
 
   try {
-    const { dataFile } = req.body;
+    const { dataFile, model } = req.body;
 
     if (!dataFile) {
       return res.status(400).json({ error: "Data file is required" });
     }
 
-    console.log(`Starting P3 analysis with data file: ${dataFile}`);
+    console.log(
+      `Starting P3 analysis with data file: ${dataFile} (model: ${
+        model || process.env.GEMINI_MODEL || "default"
+      })`
+    );
 
     // Broadcast start message
     wss.clients.forEach((client) => {
@@ -1045,8 +1116,9 @@ app.post("/api/p3/execute", (req, res) => {
 
     console.log(`Executing: python3 ${pythonArgs.join(" ")}`);
 
-    p3ScriptProcess = spawn("python3", pythonArgs, {
+    p3ScriptProcess = spawn(PYTHON_VENV, pythonArgs, {
       cwd: __dirname + "/../..",
+      env: { ...process.env, GEMINI_MODEL: model || process.env.GEMINI_MODEL },
     });
 
     let outputData = "";
@@ -1155,7 +1227,7 @@ app.post("/api/p3/execute", (req, res) => {
         });
 
         // Start P3b analysis
-        startP3bAnalysis(dataFile);
+        startP3bAnalysis(dataFile, model);
       } else {
         // P3 failed or was stopped
         const messageType = "p3_script_stopped";
@@ -1189,7 +1261,7 @@ app.post("/api/p3/execute", (req, res) => {
 // P3b analysis function
 let p3bScriptProcess = null;
 
-function startP3bAnalysis(dataFile) {
+function startP3bAnalysis(dataFile, model) {
   try {
     console.log(`Starting P3b analysis for data file: ${dataFile}`);
 
@@ -1211,8 +1283,9 @@ function startP3bAnalysis(dataFile) {
 
     console.log(`Executing P3b: python3 ${pythonArgs.join(" ")}`);
 
-    p3bScriptProcess = spawn("python3", pythonArgs, {
+    p3bScriptProcess = spawn(PYTHON_VENV, pythonArgs, {
       cwd: __dirname + "/../..",
+      env: { ...process.env, GEMINI_MODEL: model || process.env.GEMINI_MODEL },
     });
 
     let p3bOutputData = "";
@@ -1318,7 +1391,10 @@ app.post("/api/p4/execute", (req, res) => {
     const pythonArgs = ["analysis_p4.py"]; // runs from repo root
 
     // Inform clients
-    broadcast({ type: "p4_script_started", timestamp: new Date().toISOString() });
+    broadcast({
+      type: "p4_script_started",
+      timestamp: new Date().toISOString(),
+    });
 
     p4ScriptProcess = spawn("python3", pythonArgs, {
       cwd: __dirname + "/../..",
@@ -1328,16 +1404,28 @@ app.post("/api/p4/execute", (req, res) => {
       const text = data.toString();
       const lines = text.split("\n").filter((l) => l.trim());
       lines.forEach((line) => {
-        broadcast({ type: "p4_output", text: line, timestamp: new Date().toLocaleTimeString() });
+        broadcast({
+          type: "p4_output",
+          text: line,
+          timestamp: new Date().toLocaleTimeString(),
+        });
       });
     });
 
     p4ScriptProcess.stderr.on("data", (data) => {
-      broadcast({ type: "p4_script_error", data: data.toString(), timestamp: new Date().toISOString() });
+      broadcast({
+        type: "p4_script_error",
+        data: data.toString(),
+        timestamp: new Date().toISOString(),
+      });
     });
 
     p4ScriptProcess.on("close", (code) => {
-      broadcast({ type: code === 0 ? "p4_script_finished" : "p4_script_failed", code, timestamp: new Date().toISOString() });
+      broadcast({
+        type: code === 0 ? "p4_script_finished" : "p4_script_failed",
+        code,
+        timestamp: new Date().toISOString(),
+      });
       p4ScriptProcess = null;
     });
 
@@ -1358,7 +1446,10 @@ app.post("/api/p4/stop", (req, res) => {
   try {
     p4ScriptProcess.kill("SIGTERM");
     p4ScriptProcess = null;
-    broadcast({ type: "p4_script_stopped", timestamp: new Date().toISOString() });
+    broadcast({
+      type: "p4_script_stopped",
+      timestamp: new Date().toISOString(),
+    });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: "Failed to stop P4" });
@@ -1940,7 +2031,7 @@ app.post("/api/data/:filename/bulk-regenerate-themes", (req, res) => {
 // AI Suggestions endpoint
 app.post("/api/ai-suggestions", async (req, res) => {
   try {
-    const { prompt, themeData } = req.body;
+    const { prompt, themeData, aiSettings } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: "Prompt is required" });
@@ -1951,14 +2042,15 @@ app.post("/api/ai-suggestions", async (req, res) => {
     const aiScriptPath = path.join(__dirname, "ai_suggestions.py");
 
     // Execute the Python script
-    const pythonProcess = spawn(
-      pythonExe,
-      [aiScriptPath, prompt, JSON.stringify(themeData)],
-      {
-        cwd: __dirname,
-        stdio: ["pipe", "pipe", "pipe"],
-      }
-    );
+    const pythonArgs = [aiScriptPath, prompt, JSON.stringify(themeData)];
+    if (aiSettings) {
+      pythonArgs.push(JSON.stringify(aiSettings));
+    }
+
+    const pythonProcess = spawn(pythonExe, pythonArgs, {
+      cwd: __dirname,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
 
     let outputData = "";
     let errorData = "";

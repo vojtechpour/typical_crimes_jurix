@@ -14,6 +14,7 @@ const P3Analysis = () => {
   const [duration, setDuration] = useState(0);
   const [selectedDataFile, setSelectedDataFile] = useState("");
   const [availableFiles, setAvailableFiles] = useState([]);
+  const [model, setModel] = useState("gemini-2.0-flash");
 
   // P3-specific state
   const [analysisStatus, setAnalysisStatus] = useState({
@@ -350,6 +351,9 @@ const P3Analysis = () => {
   const startScript = async () => {
     try {
       setError(null);
+      try {
+        console.log(`[AI] Starting P3 analysis with model: ${model}`);
+      } catch {}
       const response = await fetch("/api/p3/execute", {
         method: "POST",
         headers: {
@@ -357,6 +361,7 @@ const P3Analysis = () => {
         },
         body: JSON.stringify({
           dataFile: selectedDataFile,
+          model,
         }),
       });
 
@@ -365,7 +370,10 @@ const P3Analysis = () => {
       if (response.ok) {
         setIsRunning(true);
         setStartTime(Date.now());
-        addOutput("🎯 Starting Phase 3 candidate theme generation...", "info");
+        addOutput(
+          `🎯 Starting Phase 3 candidate theme generation (model: ${model})...`,
+          "info"
+        );
       } else {
         setError(data.error || "Failed to start P3 script");
         addOutput(`❌ Error: ${data.error}`, "error");
@@ -549,58 +557,55 @@ const P3Analysis = () => {
   return (
     <div className="p3-analysis">
       <div className="runner-header">
-        <h2>🎯 Phase 3 Candidate Theme Analysis</h2>
+        <h2>Phase 3 Candidate Theme Analysis</h2>
         <p>Generate candidate themes from Phase 2 initial codes</p>
       </div>
 
-      {/* Control Panel */}
-      <div className="runner-controls">
-        <div className="control-buttons">
-          <button
-            onClick={startScript}
-            disabled={isRunning || !selectedDataFile}
-            className={`control-button start-button ${
-              isRunning || !selectedDataFile ? "disabled" : ""
-            }`}
+      {/* Controls */}
+      <div className="toolbar">
+        <button
+          onClick={startScript}
+          disabled={isRunning || !selectedDataFile}
+          className="btn primary"
+        >
+          {isRunning ? "Running..." : "Start P3 analysis"}
+        </button>
+        <button
+          onClick={stopScript}
+          disabled={!isRunning}
+          className="btn danger"
+        >
+          Stop
+        </button>
+        <button onClick={clearOutput} className="btn subtle">
+          Clear output
+        </button>
+        <button onClick={fetchResults} className="btn subtle">
+          Refresh results
+        </button>
+        <div className="row" style={{ alignItems: "center" }}>
+          <label htmlFor="p3-model-select" className="muted">
+            Model
+          </label>
+          <select
+            id="p3-model-select"
+            className="select"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
           >
-            {isRunning ? "🔄 Running..." : "▶️ Start P3 Analysis"}
-          </button>
-
-          <button
-            onClick={stopScript}
-            disabled={!isRunning}
-            className={`control-button stop-button ${
-              !isRunning ? "disabled" : ""
-            }`}
-          >
-            ⏹️ Stop
-          </button>
-
-          <button onClick={clearOutput} className="control-button clear-button">
-            🗑️ Clear Output
-          </button>
-
-          <button
-            onClick={fetchResults}
-            className="control-button refresh-button"
-          >
-            🔄 Refresh Results
-          </button>
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+          </select>
         </div>
-
-        <div className="status-display">
-          <div
-            className={`status-indicator ${isRunning ? "running" : "stopped"}`}
-          >
-            {isRunning ? "🟢 Running" : "⚪ Stopped"}
-          </div>
-          {duration > 0 && (
-            <div className="duration">⏱️ {formatDuration(duration)}</div>
-          )}
-        </div>
+        <span className="spacer" />
+        <span className="badge">{isRunning ? "Running" : "Stopped"}</span>
+        {duration > 0 && (
+          <span className="badge info">{formatDuration(duration)}</span>
+        )}
       </div>
 
-      {error && <div className="error-display">❌ {error}</div>}
+      {error && <div className="badge warning">{error}</div>}
 
       {/* File Selection */}
       <P3FileSelector
@@ -611,52 +616,52 @@ const P3Analysis = () => {
 
       {/* Theme Data Browser */}
       {existingThemes.length > 0 && (
-        <div className="live-codes-section">
-          <div className="section-header">
-            <h4>🎯 Generated Themes ({existingThemes.length})</h4>
-            <div className="codes-actions">
-              <button className="action-btn">📥 Export Themes</button>
-            </div>
+        <section className="card">
+          <div className="card-header row">
+            <h3>Generated themes ({existingThemes.length})</h3>
+            <span className="spacer" />
+            <button className="btn subtle">Export themes</button>
           </div>
+          <div className="card-body">
+            <div className="codes-list">
+              {existingThemes
+                .slice(0, showAllThemes ? existingThemes.length : 20)
+                .map((caseItem, index) => (
+                  <P3CaseItem
+                    key={caseItem.caseId || index}
+                    caseItem={caseItem}
+                    expandedCases={expandedCases}
+                    toggleCaseExpansion={toggleCaseExpansion}
+                    onThemeUpdate={handleThemeUpdate}
+                  />
+                ))}
+            </div>
 
-          <div className="codes-list">
-            {existingThemes
-              .slice(0, showAllThemes ? existingThemes.length : 20)
-              .map((caseItem, index) => (
-                <P3CaseItem
-                  key={caseItem.caseId || index}
-                  caseItem={caseItem}
-                  expandedCases={expandedCases}
-                  toggleCaseExpansion={toggleCaseExpansion}
-                  onThemeUpdate={handleThemeUpdate}
-                />
-              ))}
+            {existingThemes.length > 20 && !showAllThemes && (
+              <div className="more-codes-indicator">
+                <span>+ {existingThemes.length - 20} more completed cases</span>
+                <button
+                  className="btn subtle"
+                  onClick={() => setShowAllThemes(true)}
+                >
+                  View all generated themes
+                </button>
+              </div>
+            )}
+
+            {showAllThemes && existingThemes.length > 20 && (
+              <div className="more-codes-indicator">
+                <span>Showing all {existingThemes.length} cases</span>
+                <button
+                  className="btn subtle"
+                  onClick={() => setShowAllThemes(false)}
+                >
+                  Show less
+                </button>
+              </div>
+            )}
           </div>
-
-          {existingThemes.length > 20 && !showAllThemes && (
-            <div className="more-codes-indicator">
-              <span>+ {existingThemes.length - 20} more completed cases</span>
-              <button
-                className="view-all-btn"
-                onClick={() => setShowAllThemes(true)}
-              >
-                View All Generated Themes
-              </button>
-            </div>
-          )}
-
-          {showAllThemes && existingThemes.length > 20 && (
-            <div className="more-codes-indicator">
-              <span>Showing all {existingThemes.length} cases</span>
-              <button
-                className="view-all-btn"
-                onClick={() => setShowAllThemes(false)}
-              >
-                Show Less
-              </button>
-            </div>
-          )}
-        </div>
+        </section>
       )}
 
       {/* Theme Organization Tool */}
@@ -669,36 +674,35 @@ const P3Analysis = () => {
 
       {/* Generated Themes Display */}
       {analysisStatus.recentThemes.length > 0 && (
-        <div className="live-themes-section">
-          <div className="section-header">
-            <h4>
-              🎯 Generated Candidate Themes (
-              {analysisStatus.recentThemes.length})
-            </h4>
+        <section className="card">
+          <div className="card-header row">
+            <h3>
+              Generated candidate themes ({analysisStatus.recentThemes.length})
+            </h3>
           </div>
-
-          <div className="themes-list">
-            {analysisStatus.recentThemes.slice(0, 10).map((theme, index) => (
-              <ThemeGenerationItem
-                key={theme.caseId}
-                theme={theme}
-                onEdit={() => {}}
-                onSave={() => {}}
-                isSaving={false}
-                onThemeUpdate={handleThemeUpdate}
-              />
-            ))}
-          </div>
-
-          {analysisStatus.recentThemes.length > 10 && (
-            <div className="more-themes-indicator">
-              <span>
-                + {analysisStatus.recentThemes.length - 10} more themes
-                generated
-              </span>
+          <div className="card-body">
+            <div className="themes-list">
+              {analysisStatus.recentThemes.slice(0, 10).map((theme, index) => (
+                <ThemeGenerationItem
+                  key={theme.caseId}
+                  theme={theme}
+                  onEdit={() => {}}
+                  onSave={() => {}}
+                  isSaving={false}
+                  onThemeUpdate={handleThemeUpdate}
+                />
+              ))}
             </div>
-          )}
-        </div>
+            {analysisStatus.recentThemes.length > 10 && (
+              <div className="more-themes-indicator">
+                <span>
+                  + {analysisStatus.recentThemes.length - 10} more themes
+                  generated
+                </span>
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       {/* P3b Theme Finalization Display */}

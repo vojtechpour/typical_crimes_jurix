@@ -46,7 +46,7 @@ const P4AssignThemes = () => {
             break;
           case "p4_script_failed":
             setIsRunning(false);
-            addOutput(`❌ Phase 4 failed with code ${msg.code}` , "error");
+            addOutput(`❌ Phase 4 failed with code ${msg.code}`, "error");
             break;
           case "p4_script_stopped":
             setIsRunning(false);
@@ -62,10 +62,17 @@ const P4AssignThemes = () => {
   };
 
   const addOutput = (text, type = "info") => {
-    setOutput((prev) => [
-      ...prev,
-      { id: Date.now() + Math.random(), text, type, timestamp: new Date().toLocaleTimeString() },
-    ].slice(-500));
+    setOutput((prev) =>
+      [
+        ...prev,
+        {
+          id: Date.now() + Math.random(),
+          text,
+          type,
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ].slice(-500)
+    );
   };
 
   const checkStatus = async () => {
@@ -118,58 +125,48 @@ const P4AssignThemes = () => {
   return (
     <div className="p3-analysis">
       <div className="runner-header">
-        <h2>🏁 Phase 4 Assign Final Themes</h2>
+        <h2>Phase 4 Assign Final Themes</h2>
         <p>Assign finalized themes to all cases using Phase 3b output</p>
       </div>
 
-      <div className="runner-controls">
-        <div className="control-buttons">
-          <button
-            onClick={startP4}
-            disabled={isRunning}
-            className={`control-button start-button ${isRunning ? "disabled" : ""}`}
-          >
-            {isRunning ? "🔄 Running..." : "▶️ Start Phase 4"}
-          </button>
-          <button
-            onClick={stopP4}
-            disabled={!isRunning}
-            className={`control-button stop-button ${!isRunning ? "disabled" : ""}`}
-          >
-            ⏹️ Stop
-          </button>
+      {/* Controls */}
+      <div className="toolbar">
+        <button onClick={startP4} disabled={isRunning} className="btn primary">
+          {isRunning ? "Running..." : "Start Phase 4"}
+        </button>
+        <button onClick={stopP4} disabled={!isRunning} className="btn danger">
+          Stop
+        </button>
+        <span className="spacer" />
+        <span className="badge">{isRunning ? "Running" : "Stopped"}</span>
+        {duration > 0 && (
+          <span className="badge info">{formatDuration(duration)}</span>
+        )}
+      </div>
+
+      {error && <div className="badge warning">{error}</div>}
+
+      {/* Output */}
+      <section className="card">
+        <div className="card-header row">
+          <h3>Phase 4 output</h3>
         </div>
-        <div className="status-display">
-          <div className={`status-indicator ${isRunning ? "running" : "stopped"}`}>
-            {isRunning ? "🟢 Running" : "⚪ Stopped"}
+        <div className="card-body">
+          <div className="terminal" role="log" aria-live="polite">
+            {output.length === 0 ? (
+              <div className="line">No output yet</div>
+            ) : (
+              output.map((line) => (
+                <div key={line.id} className="line">
+                  <span className="tag">[{line.timestamp}]</span> {line.text}
+                </div>
+              ))
+            )}
           </div>
-          {duration > 0 && <div className="duration">⏱️ {formatDuration(duration)}</div>}
         </div>
-      </div>
-
-      {error && <div className="error-display">❌ {error}</div>}
-
-      <div className="logs-section">
-        <div className="logs-header">
-          <h4>Phase 4 Output</h4>
-        </div>
-        <div className="output-terminal">
-          {output.length === 0 ? (
-            <div className="no-output">No output yet</div>
-          ) : (
-            output.map((line) => (
-              <div key={line.id} className={`output-line ${line.type}`}>
-                <span className="timestamp">[{line.timestamp}]</span>
-                <span className="content">{line.text}</span>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      </section>
     </div>
   );
 };
 
 export default P4AssignThemes;
-
-
