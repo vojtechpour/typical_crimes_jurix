@@ -8,6 +8,7 @@ Google API key in it. The file should look like this:
 '''
 
 import json
+import os
 import google.generativeai as genai
 from time import sleep
 import datetime
@@ -16,7 +17,7 @@ import logging
 # Set up logging for this module
 logger = logging.getLogger(__name__)
 
-MODEL = 'gemini-2.0-flash'
+MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
 TEMPERATURE = 1
 COMPLETION_LEN = 2000
 TOP_P = 1

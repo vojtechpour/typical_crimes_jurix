@@ -3,9 +3,15 @@ import json
 import logging
 from pathlib import Path
 import sys
-from gemini_api import get_analysis, response_to_json, COMPLETION_LEN, count_tokens
+import os
+import time
+from gemini_api import get_analysis as gemini_get_analysis, response_to_json, COMPLETION_LEN, count_tokens, MODEL as GEMINI_MODEL
 import datetime
 import argparse
+try:
+    from openai import OpenAI  # OpenAI Responses API
+except Exception:
+    OpenAI = None
 
 
 def log_progress_update(case_id, codes, progress_info):
@@ -87,7 +93,11 @@ else:
     # Default fallback
     DATA_FILE = DATA_DIR / 'kradeze_pripady_test_100_2_balanced_dedupl.json'
 
-MODEL = 'gemini-2.0-flash'
+# Provider/model selection from environment (set by server)
+PROVIDER = os.getenv('MODEL_PROVIDER', 'gemini').lower()
+SELECTED_MODEL = (
+    os.getenv('OPENAI_MODEL') if PROVIDER == 'openai' else os.getenv('GEMINI_MODEL', GEMINI_MODEL)
+)
 
 logger.info(f"Using data file: {DATA_FILE}")
 
@@ -169,14 +179,17 @@ def save_data_safely(data, filepath):
 
 
 logger.info("=== Starting Phase 2 Analysis ===")
-logger.info(f"Using model: {MODEL}")
+logger.info(f"Using provider: {PROVIDER}")
+logger.info(f"Using model: {SELECTED_MODEL}")
 logger.info(f"Token limit: {PROMPT_LIMIT:,}")
-logger.info("🔄 Using Gemini's precise token counting API")
+logger.info(
+    "🔄 Using Gemini token counting" if PROVIDER == 'gemini' else "🔄 Using estimated token counting"
+)
 logger.info("💾 Saving after each case processed")
 
 # Log phase update for web interface
 log_phase_update("Initializing", {
-    "model": MODEL,
+    "model": SELECTED_MODEL,
     "token_limit": PROMPT_LIMIT,
     "data_file": str(DATA_FILE)
 })
@@ -216,9 +229,16 @@ user_prompt = construct_user_prompt(candidate_codes, args.global_instructions)
 with open(SYSTEM_PROMPT_FILE, 'r') as f:
     system_prompt = f.read().strip()
 
-# Use Gemini's native token counting
-base_user_tokens = count_tokens(user_prompt)
-base_system_tokens = count_tokens(system_prompt)
+# Token counting (precise for Gemini, estimated for OpenAI)
+def estimate_tokens(text: str) -> int:
+    return max(1, len(text) // 4)
+
+if PROVIDER == 'gemini':
+    base_user_tokens = count_tokens(user_prompt)
+    base_system_tokens = count_tokens(system_prompt)
+else:
+    base_user_tokens = estimate_tokens(user_prompt)
+    base_system_tokens = estimate_tokens(system_prompt)
 prompt_length_base = base_user_tokens + base_system_tokens + COMPLETION_LEN
 
 logger.info(f"Base prompt tokens - User: {base_user_tokens:,}, System: {base_system_tokens:,}, Completion: {COMPLETION_LEN:,}")
@@ -248,12 +268,55 @@ for id_slt, data_point in data.items():
     user_prompt_w_data = user_prompt.replace('{{DATA}}', case_data_prompt)
     
     try:
-        logger.info(f"Sending case {id_slt} to Gemini API...")
+        logger.info(f"Sending case {id_slt} to {PROVIDER.capitalize()} API...")
         
         # Retry logic for API calls
         max_retries = 3
         for attempt in range(max_retries):
-            response = get_analysis(system_prompt, user_prompt_w_data)
+            # Provider-aware analysis call returning compatibility dict
+            def get_provider_analysis(sys_prompt, usr_prompt):
+                if PROVIDER == 'gemini':
+                    return gemini_get_analysis(sys_prompt, usr_prompt)
+                # OpenAI (GPT-5) path
+                if OpenAI is None:
+                    raise RuntimeError("OpenAI client not available")
+                # Load API key
+                with open('config.json') as cf:
+                    cfg = json.load(cf)
+                    openai_api_key = cfg.get('api_key') or cfg.get('openai_api_key')
+                client = OpenAI(api_key=openai_api_key)
+                model_name = SELECTED_MODEL or 'gpt-5'
+                # Build input list for Responses API
+                input_list = [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": usr_prompt},
+                ]
+                try:
+                    resp = client.responses.create(model=model_name, input=input_list)
+                    content_text = resp.output_text
+                except Exception as e:
+                    # simple retry on rate limit
+                    err = str(e).lower()
+                    if "rate limit" in err or "quota" in err:
+                        time.sleep(60)
+                        resp = client.responses.create(model=model_name, input=input_list)
+                        content_text = resp.output_text
+                    else:
+                        raise
+                return {
+                    'system_prompt': sys_prompt,
+                    'user_prompt': usr_prompt,
+                    'params': {
+                        'model': model_name,
+                    },
+                    'choices': [{
+                        'message': {
+                            'content': content_text
+                        }
+                    }]
+                }
+
+            response = get_provider_analysis(system_prompt, user_prompt_w_data)
             json_res = response_to_json(response)
             
             if id_slt in json_res:

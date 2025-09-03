@@ -9,7 +9,7 @@ import P3Analysis from "./components/P3Analysis"; // Phase 3/3b
 import P4AssignThemes from "./components/P4AssignThemes"; // Phase 4
 import ProcessSummary from "./components/ProcessSummary";
 
-const NAV = [
+const NAV: { key: string; label: string }[] = [
   { key: "data", label: "Data & Theme Explorer" },
   { key: "p2", label: "Initial Codes (P2)" },
   { key: "p3", label: "Themes (P3/P3b)" },
@@ -17,9 +17,9 @@ const NAV = [
 ];
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState("data");
-  const [theme, setTheme] = useState("auto");
-  const [specificDataFile, setSpecificDataFile] = useState(null);
+  const [currentTab, setCurrentTab] = useState<string>("data");
+  const [theme, setTheme] = useState<string>("auto");
+  const [specificDataFile, setSpecificDataFile] = useState<string | null>(null);
 
   // optional: allow manual overrides on <html>
   useMemo(() => {
@@ -31,20 +31,21 @@ export default function App() {
 
   // window events compatibility (existing behavior)
   React.useEffect(() => {
-    const onSwitch = (e) => {
+    const onSwitch = (e: Event) => {
       setCurrentTab("data");
-      if (e.detail && e.detail.filename) {
-        setSpecificDataFile(e.detail.filename);
+      const detail = (e as CustomEvent<{ filename?: string }>).detail;
+      if (detail && detail.filename) {
+        setSpecificDataFile(detail.filename);
       }
     };
     const onClear = () => {
       setSpecificDataFile(null);
     };
-    window.addEventListener("switchToDataBrowser", onSwitch);
-    window.addEventListener("clearSpecificFile", onClear);
+    window.addEventListener("switchToDataBrowser", onSwitch as EventListener);
+    window.addEventListener("clearSpecificFile", onClear as EventListener);
     return () => {
-      window.removeEventListener("switchToDataBrowser", onSwitch);
-      window.removeEventListener("clearSpecificFile", onClear);
+      window.removeEventListener("switchToDataBrowser", onSwitch as EventListener);
+      window.removeEventListener("clearSpecificFile", onClear as EventListener);
     };
   }, []);
 

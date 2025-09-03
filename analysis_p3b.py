@@ -1,7 +1,6 @@
 from collections import Counter
 import json
 from pathlib import Path
-import tiktoken
 from gemini_api import get_analysis, response_to_json, COMPLETION_LEN, MODEL
 
 
@@ -59,12 +58,16 @@ candidate_themes = [dp[OUTPUT_FIELD] for dp in data.values() if OUTPUT_FIELD in 
 user_prompt = construct_user_prompt(candidate_themes)
 with open(SYSTEM_PROMPT_FILE, 'r') as f:
     system_prompt = f.read().strip()
-encoding = tiktoken.encoding_for_model(MODEL)
-prompt_length_base = (
-    len(encoding.encode(user_prompt)) + 
-    len(encoding.encode(system_prompt)) + 
-    COMPLETION_LEN
-)
+
+# Estimate token usage in a model-agnostic way (≈ 1 token per 4 chars)
+def count_tokens_estimate(text: str) -> int:
+    if not text:
+        return 0
+    return max(1, len(text) // 4)
+
+base_user_tokens = count_tokens_estimate(user_prompt)
+base_system_tokens = count_tokens_estimate(system_prompt)
+prompt_length_base = base_user_tokens + base_system_tokens + COMPLETION_LEN
 user_prompt = user_prompt.replace('THE SUBSET OF THE DATA POINTS TO BE ANALYZED\n{{DATA}}', '')
 
 print(user_prompt)

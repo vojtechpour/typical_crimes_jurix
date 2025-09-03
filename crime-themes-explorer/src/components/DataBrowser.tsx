@@ -12,38 +12,49 @@ import ControlPanel from "./ControlPanel";
 import ChangeTracker from "./ChangeTracker";
 import Statistics from "./Statistics";
 
-const DataBrowser = ({ specificFile = null }) => {
-  const [files, setFiles] = useState([]);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [fileData, setFileData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [error, setError] = useState(null);
-  const [loadingData, setLoadingData] = useState(false);
+interface DataBrowserProps {
+  specificFile?: string | null;
+}
+
+const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
+  const [files, setFiles] = useState<any[]>([]);
+  const [selectedFile, setSelectedFile] = useState<any | null>(null);
+  const [fileData, setFileData] = useState<any | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+  const [loadingData, setLoadingData] = useState<boolean>(false);
 
   // Upload-related state
-  const [selectedUploadFile, setSelectedUploadFile] = useState(null);
-  const [uploadStatus, setUploadStatus] = useState(null);
-  const [validationResult, setValidationResult] = useState(null);
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(
+    null
+  );
+  const [uploadStatus, setUploadStatus] = useState<any>(null);
+  const [validationResult, setValidationResult] = useState<any>(null);
 
   // Delete-related state
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // Statistics state
-  const [fileStats, setFileStats] = useState(null);
-  const [loadingStats, setLoadingStats] = useState(false);
+  const [fileStats, setFileStats] = useState<any>(null);
+  const [loadingStats, setLoadingStats] = useState<boolean>(false);
 
   // Theme exploration state
-  const [activeMode, setActiveMode] = useState("browse"); // "browse" or "themes"
-  const [originalThemes, setOriginalThemes] = useState({});
-  const [modifiedThemes, setModifiedThemes] = useState({});
-  const [leftTheme, setLeftTheme] = useState("");
-  const [rightTheme, setRightTheme] = useState("");
-  const [changesLog, setChangesLog] = useState([]);
-  const [themeExtractionLoading, setThemeExtractionLoading] = useState(false);
+  const [activeMode, setActiveMode] = useState<"browse" | "themes">("browse");
+  const [originalThemes, setOriginalThemes] = useState<
+    Record<string, string[]>
+  >({});
+  const [modifiedThemes, setModifiedThemes] = useState<
+    Record<string, string[]>
+  >({});
+  const [leftTheme, setLeftTheme] = useState<string>("");
+  const [rightTheme, setRightTheme] = useState<string>("");
+  const [changesLog, setChangesLog] = useState<any[]>([]);
+  const [themeExtractionLoading, setThemeExtractionLoading] =
+    useState<boolean>(false);
 
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const itemsPerPage = 20;
 
   const sensors = useSensors(
@@ -77,14 +88,18 @@ const DataBrowser = ({ specificFile = null }) => {
       const response = await fetch("/api/data-files");
       const data = await response.json();
       setFiles(data);
-    } catch (error) {
+    } catch (error: any) {
       setError("Failed to load files: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadFileData = async (filename, page = 1, searchTerm = "") => {
+  const loadFileData = async (
+    filename: string,
+    page: number = 1,
+    searchTerm: string = ""
+  ) => {
     setLoadingData(true);
     setError(null);
     try {
@@ -104,14 +119,14 @@ const DataBrowser = ({ specificFile = null }) => {
       if (page === 1 && !searchTerm) {
         loadFileStatistics(filename);
       }
-    } catch (error) {
+    } catch (error: any) {
       setError("Failed to load file data: " + error.message);
     } finally {
       setLoadingData(false);
     }
   };
 
-  const loadFileStatistics = async (filename) => {
+  const loadFileStatistics = async (filename: string) => {
     setLoadingStats(true);
     try {
       // Get all data for statistics (no pagination)
@@ -129,8 +144,8 @@ const DataBrowser = ({ specificFile = null }) => {
     }
   };
 
-  const calculateFileStatistics = (items) => {
-    const stats = {
+  const calculateFileStatistics = (items: any[]) => {
+    const stats: any = {
       totalRecords: items.length,
       fieldAnalysis: {},
       textAnalysis: {},
@@ -140,7 +155,7 @@ const DataBrowser = ({ specificFile = null }) => {
     };
 
     // Analyze all fields
-    const allFields = new Set();
+    const allFields = new Set<string>();
     items.forEach((item) => {
       Object.keys(item).forEach((key) => allFields.add(key));
     });
@@ -154,7 +169,7 @@ const DataBrowser = ({ specificFile = null }) => {
           item[field] !== ""
       ).length;
 
-      stats.fieldAnalysis[field] = {
+      (stats.fieldAnalysis as any)[field] = {
         completeness: ((nonNullValues / items.length) * 100).toFixed(1),
         nonNullCount: nonNullValues,
         uniqueValues: new Set(
@@ -179,17 +194,21 @@ const DataBrowser = ({ specificFile = null }) => {
     if (descriptionField) {
       const descriptions = items
         .map((item) => item[descriptionField])
-        .filter((desc) => desc);
-      const wordCounts = descriptions.map((desc) => desc.split(/\s+/).length);
-      const charCounts = descriptions.map((desc) => desc.length);
+        .filter((desc: any) => desc);
+      const wordCounts = descriptions.map(
+        (desc: string) => desc.split(/\s+/).length
+      );
+      const charCounts = descriptions.map((desc: string) => desc.length);
 
       stats.textAnalysis = {
         field: descriptionField,
         avgWordCount: (
-          wordCounts.reduce((a, b) => a + b, 0) / wordCounts.length
+          wordCounts.reduce((a: number, b: number) => a + b, 0) /
+          wordCounts.length
         ).toFixed(1),
         avgCharCount: (
-          charCounts.reduce((a, b) => a + b, 0) / charCounts.length
+          charCounts.reduce((a: number, b: number) => a + b, 0) /
+          charCounts.length
         ).toFixed(0),
         minWordCount: Math.min(...wordCounts),
         maxWordCount: Math.max(...wordCounts),
@@ -203,15 +222,15 @@ const DataBrowser = ({ specificFile = null }) => {
         .toLowerCase()
         .replace(/[^\w\s]/g, " ")
         .split(/\s+/)
-        .filter((word) => word.length > 3);
+        .filter((word: string) => word.length > 3);
 
-      const wordFreq = {};
-      allWords.forEach((word) => {
+      const wordFreq: Record<string, number> = {};
+      allWords.forEach((word: string) => {
         wordFreq[word] = (wordFreq[word] || 0) + 1;
       });
 
       stats.textAnalysis.commonWords = Object.entries(wordFreq)
-        .sort(([, a], [, b]) => b - a)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
         .slice(0, 10)
         .map(([word, count]) => ({ word, count }));
     }
@@ -227,23 +246,25 @@ const DataBrowser = ({ specificFile = null }) => {
       if (items.some((item) => item[field])) {
         const themes = items
           .map((item) => item[field])
-          .filter((theme) => theme);
-        const themeFreq = {};
-        themes.forEach((theme) => {
+          .filter((theme: any) => theme);
+        const themeFreq: Record<string, number> = {};
+        themes.forEach((theme: string) => {
           themeFreq[theme] = (themeFreq[theme] || 0) + 1;
         });
 
-        stats.themeAnalysis[field] = {
+        (stats.themeAnalysis as any)[field] = {
           uniqueThemes: Object.keys(themeFreq).length,
           totalThemed: themes.length,
           coverage: ((themes.length / items.length) * 100).toFixed(1),
           topThemes: Object.entries(themeFreq)
-            .sort(([, a], [, b]) => b - a)
+            .sort(([, a], [, b]) => (b as number) - (a as number))
             .slice(0, 10)
             .map(([theme, count]) => ({
               theme,
               count,
-              percentage: ((count / themes.length) * 100).toFixed(1),
+              percentage: (((count as number) / themes.length) * 100).toFixed(
+                1
+              ),
             })),
         };
       }
@@ -259,24 +280,30 @@ const DataBrowser = ({ specificFile = null }) => {
 
     if (dateFields.length > 0) {
       dateFields.forEach((field) => {
-        const dates = items.map((item) => item[field]).filter((date) => date);
+        const dates = items
+          .map((item) => item[field])
+          .filter((date: any) => date);
         if (dates.length > 0) {
           // Try to parse dates
           const parsedDates = dates
-            .map((date) => {
+            .map((date: any) => {
               try {
                 return new Date(date);
               } catch {
                 return null;
               }
             })
-            .filter((date) => date && !isNaN(date));
+            .filter((date: any) => date && !isNaN(date as any));
 
           if (parsedDates.length > 0) {
-            stats.temporalAnalysis[field] = {
+            (stats.temporalAnalysis as any)[field] = {
               count: parsedDates.length,
-              earliest: new Date(Math.min(...parsedDates)).toLocaleDateString(),
-              latest: new Date(Math.max(...parsedDates)).toLocaleDateString(),
+              earliest: new Date(
+                Math.min(...(parsedDates as any))
+              ).toLocaleDateString(),
+              latest: new Date(
+                Math.max(...(parsedDates as any))
+              ).toLocaleDateString(),
               coverage: ((parsedDates.length / items.length) * 100).toFixed(1),
             };
           }
@@ -296,7 +323,7 @@ const DataBrowser = ({ specificFile = null }) => {
       hasRequiredFields: hasRequiredField,
       completenessScore: (
         Object.values(stats.fieldAnalysis).reduce(
-          (sum, field) => sum + parseFloat(field.completeness),
+          (sum: number, field: any) => sum + parseFloat(field.completeness),
           0
         ) / Object.keys(stats.fieldAnalysis).length
       ).toFixed(1),
@@ -313,11 +340,12 @@ const DataBrowser = ({ specificFile = null }) => {
     return stats;
   };
 
-  const handleFileSelect = (file) => {
+  const handleFileSelect = (file: any) => {
     // Handle file object vs event
-    if (file.target) {
+    if ((file as any).target) {
       // This is from file input - handle file upload selection
-      const selectedFile = file.target.files[0];
+      const selectedFile = (file as React.ChangeEvent<HTMLInputElement>).target
+        .files?.[0];
       if (selectedFile) {
         setSelectedUploadFile(selectedFile);
         validateFile(selectedFile);
@@ -333,7 +361,7 @@ const DataBrowser = ({ specificFile = null }) => {
     }
   };
 
-  const validateFile = (file) => {
+  const validateFile = (file: File) => {
     const maxSize = 50 * 1024 * 1024; // 50MB
 
     if (file.size > maxSize) {
@@ -348,7 +376,7 @@ const DataBrowser = ({ specificFile = null }) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const jsonData = JSON.parse(e.target.result);
+        const jsonData = JSON.parse((e.target as FileReader).result as string);
 
         // Only support object format with case IDs as keys
         if (Array.isArray(jsonData)) {
@@ -368,8 +396,9 @@ const DataBrowser = ({ specificFile = null }) => {
 
         // Check for required field in each case record
         const caseRecords = Object.values(jsonData);
-        const hasRequiredField = caseRecords.every(
-          (item) => item && typeof item === "object" && item.plny_skutek_short
+        const hasRequiredField = (caseRecords as any[]).every(
+          (item) =>
+            item && typeof item === "object" && (item as any).plny_skutek_short
         );
 
         if (!hasRequiredField) {
@@ -383,7 +412,7 @@ const DataBrowser = ({ specificFile = null }) => {
           itemCount: caseIds.length,
           fileSize: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
         });
-      } catch (error) {
+      } catch (error: any) {
         setValidationResult({
           isValid: false,
           error: error.message,
@@ -395,20 +424,20 @@ const DataBrowser = ({ specificFile = null }) => {
     reader.readAsText(file);
   };
 
-  const handleSearch = (e) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedFile) {
       loadFileData(selectedFile.name, 1, searchTerm);
     }
   };
 
-  const handlePageChange = (newPage) => {
+  const handlePageChange = (newPage: number) => {
     if (selectedFile) {
       loadFileData(selectedFile.name, newPage, searchTerm);
     }
   };
 
-  const formatSize = (bytes) => {
+  const formatSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
@@ -416,11 +445,11 @@ const DataBrowser = ({ specificFile = null }) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const formatDate = (date) => {
+  const formatDate = (date: string | number | Date) => {
     return new Date(date).toLocaleString();
   };
 
-  const renderValue = (value, key = "") => {
+  const renderValue = (value: any, key: string = "") => {
     if (value === null || value === undefined) {
       return <span className="null-value">null</span>;
     }
@@ -507,7 +536,7 @@ const DataBrowser = ({ specificFile = null }) => {
     }
   };
 
-  const deleteFile = async (filename) => {
+  const deleteFile = async (filename: string) => {
     try {
       const response = await fetch(`/api/data/${filename}`, {
         method: "DELETE",
@@ -539,7 +568,7 @@ const DataBrowser = ({ specificFile = null }) => {
           message: result.error || "Failed to delete file",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       setUploadStatus({
         success: false,
         message: "Delete error: " + error.message,
@@ -549,7 +578,7 @@ const DataBrowser = ({ specificFile = null }) => {
     }
   };
 
-  const handleDeleteClick = (filename) => {
+  const handleDeleteClick = (filename: string) => {
     setDeleteConfirm(filename);
   };
 
@@ -564,7 +593,7 @@ const DataBrowser = ({ specificFile = null }) => {
   };
 
   // Theme exploration functions
-  const extractThemesFromFile = async (filename) => {
+  const extractThemesFromFile = async (filename: string) => {
     if (!filename) return;
 
     setThemeExtractionLoading(true);
@@ -579,9 +608,9 @@ const DataBrowser = ({ specificFile = null }) => {
       }
 
       // Extract themes from the data
-      const themeStructure = {};
+      const themeStructure: Record<string, string[]> = {};
 
-      data.items.forEach((item) => {
+      data.items.forEach((item: any) => {
         // Look for theme fields - try different possible field names
         const themeField =
           item.theme || item.candidate_theme || item.initial_code;
@@ -595,7 +624,7 @@ const DataBrowser = ({ specificFile = null }) => {
           let subTheme = theme;
 
           // Define mapping patterns for main categories
-          const categoryPatterns = {
+          const categoryPatterns: Record<string, string[]> = {
             "Workplace Theft": ["workplace", "work", "office", "employee"],
             Shoplifting: ["shoplifting", "shop", "store", "retail"],
             "Theft from Vehicles": ["vehicle", "car", "auto", "from vehicle"],
@@ -652,7 +681,7 @@ const DataBrowser = ({ specificFile = null }) => {
       }
 
       setOriginalThemes(themeStructure);
-      setModifiedThemes(JSON.parse(JSON.stringify(themeStructure))); // Deep copy
+      setModifiedThemes(JSON.parse(JSON.stringify(themeStructure)));
 
       // Set initial themes
       const themeNames = Object.keys(themeStructure);
@@ -674,7 +703,7 @@ const DataBrowser = ({ specificFile = null }) => {
     }
   };
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = (event: any) => {
     const { active, over } = event;
 
     if (!over) return;
@@ -687,7 +716,7 @@ const DataBrowser = ({ specificFile = null }) => {
 
     // Get drop target data
     const overData = over.data.current;
-    let targetTheme;
+    let targetTheme: string | undefined;
     let insertionIndex = -1; // -1 means append to end
 
     if (overData && overData.type === "container") {
@@ -703,14 +732,14 @@ const DataBrowser = ({ specificFile = null }) => {
       insertionIndex = overData.index;
     } else {
       // Try to extract theme from ID as fallback
-      const overId = over.id;
+      const overId = over.id as string;
       if (overId.includes("|||")) {
         targetTheme = overId.split("|||")[1];
-      } else if (overId.startsWith("container-")) {
-        targetTheme = overId.replace("container-", "");
-      } else if (overId.startsWith("drop-")) {
+      } else if ((overId as string).startsWith("container-")) {
+        targetTheme = (overId as string).replace("container-", "");
+      } else if ((overId as string).startsWith("drop-")) {
         // Handle drop- prefixed IDs
-        const originalId = overId.replace("drop-", "");
+        const originalId = (overId as string).replace("drop-", "");
         if (originalId.includes("|||")) {
           targetTheme = originalId.split("|||")[1];
           // Get index from the original ID
@@ -733,7 +762,7 @@ const DataBrowser = ({ specificFile = null }) => {
     ) {
       handleMove(
         activeTheme,
-        targetTheme,
+        targetTheme as string,
         activeIndex,
         activeText,
         insertionIndex
@@ -742,13 +771,13 @@ const DataBrowser = ({ specificFile = null }) => {
   };
 
   const handleMove = (
-    fromTheme,
-    toTheme,
-    fromIndex,
-    itemText,
-    toIndex = -1
+    fromTheme: string,
+    toTheme: string,
+    fromIndex: number,
+    itemText: string,
+    toIndex: number = -1
   ) => {
-    const newModifiedThemes = { ...modifiedThemes };
+    const newModifiedThemes: Record<string, string[]> = { ...modifiedThemes };
 
     // Remove from source
     newModifiedThemes[fromTheme] = newModifiedThemes[fromTheme].filter(
@@ -812,7 +841,7 @@ const DataBrowser = ({ specificFile = null }) => {
     URL.revokeObjectURL(url);
   };
 
-  const renderFileData = (data) => {
+  const renderFileData = (data: any) => {
     if (!data || !data.items || data.items.length === 0) {
       return (
         <div className="no-data">
@@ -822,9 +851,11 @@ const DataBrowser = ({ specificFile = null }) => {
     }
 
     // Get all unique keys from the data
-    const allKeys = [
-      ...new Set(data.items.flatMap((item) => Object.keys(item))),
-    ];
+    const allKeys: string[] = Array.from(
+      new Set<string>(
+        data.items.flatMap((item: any) => Object.keys(item) as string[])
+      )
+    );
 
     const emphasizeColumns = new Set([
       "candidate_theme",
@@ -839,15 +870,15 @@ const DataBrowser = ({ specificFile = null }) => {
         <table className="table" role="grid" aria-label="Cases">
           <thead>
             <tr>
-              {allKeys.map((key) => (
+              {allKeys.map((key: string) => (
                 <th key={key}>{key}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {data.items.map((item, index) => (
+            {data.items.map((item: any, index: number) => (
               <tr key={index}>
-                {allKeys.map((key) => (
+                {allKeys.map((key: string) => (
                   <td
                     key={key}
                     className={`data-cell ${
@@ -1155,16 +1186,16 @@ const DataBrowser = ({ specificFile = null }) => {
                     <tbody>
                       {Object.entries(fileStats.fieldAnalysis)
                         .sort(
-                          ([, a], [, b]) =>
+                          ([, a]: any, [, b]: any) =>
                             parseFloat(b.completeness) -
                             parseFloat(a.completeness)
                         )
                         .slice(0, 10)
-                        .map(([field, analysis]) => (
+                        .map(([field, analysis]: any) => (
                           <tr key={field}>
                             <td className="cell-mono">{field}</td>
-                            <td>{analysis.completeness}%</td>
-                            <td>{analysis.uniqueValues}</td>
+                            <td>{(analysis as any).completeness}%</td>
+                            <td>{(analysis as any).uniqueValues}</td>
                           </tr>
                         ))}
                     </tbody>
@@ -1208,7 +1239,7 @@ const DataBrowser = ({ specificFile = null }) => {
                           style={{ gap: 6, flexWrap: "wrap" }}
                         >
                           {fileStats.textAnalysis.commonWords.map(
-                            ({ word, count }) => (
+                            ({ word, count }: any) => (
                               <span key={word} className="badge">
                                 {word} ({count})
                               </span>
@@ -1225,7 +1256,7 @@ const DataBrowser = ({ specificFile = null }) => {
                   <div className="stats-section" style={{ marginTop: 12 }}>
                     <h4>Theme analysis</h4>
                     {Object.entries(fileStats.themeAnalysis).map(
-                      ([field, analysis]) => (
+                      ([field, analysis]: any) => (
                         <div key={field} style={{ marginTop: 8 }}>
                           <h5>{field.replace(/_/g, " ").toUpperCase()}</h5>
                           <div
@@ -1239,13 +1270,13 @@ const DataBrowser = ({ specificFile = null }) => {
                             <span className="badge">
                               <strong>Unique themes</strong>
                               <span className="muted">
-                                {analysis.uniqueThemes}
+                                {(analysis as any).uniqueThemes}
                               </span>
                             </span>
                             <span className="badge">
                               <strong>Coverage</strong>
                               <span className="muted">
-                                {analysis.coverage}%
+                                {(analysis as any).coverage}%
                               </span>
                             </span>
                           </div>
@@ -1262,9 +1293,9 @@ const DataBrowser = ({ specificFile = null }) => {
                               </tr>
                             </thead>
                             <tbody>
-                              {analysis.topThemes
+                              {(analysis as any).topThemes
                                 .slice(0, 5)
-                                .map(({ theme, count, percentage }) => (
+                                .map(({ theme, count, percentage }: any) => (
                                   <tr key={theme}>
                                     <td>{theme}</td>
                                     <td className="cell-mono">{count}</td>
@@ -1297,13 +1328,14 @@ const DataBrowser = ({ specificFile = null }) => {
                       </thead>
                       <tbody>
                         {Object.entries(fileStats.temporalAnalysis).map(
-                          ([field, analysis]) => (
+                          ([field, analysis]: any) => (
                             <tr key={field}>
                               <td className="cell-mono">{field}</td>
                               <td>
-                                {analysis.earliest} – {analysis.latest}
+                                {(analysis as any).earliest} –{" "}
+                                {(analysis as any).latest}
                               </td>
-                              <td>{analysis.coverage}%</td>
+                              <td>{(analysis as any).coverage}%</td>
                             </tr>
                           )
                         )}
@@ -1431,11 +1463,19 @@ const DataBrowser = ({ specificFile = null }) => {
               />
 
               <ChangeTracker
-                changesLog={changesLog}
-                onUndoChange={(changeIndex) => {
-                  // Implement undo functionality if needed
-                  console.log("Undo change:", changeIndex);
-                }}
+                changes={changesLog.map((c, idx) => ({
+                  id: idx,
+                  type: c.action,
+                  description:
+                    c.action === "reorder"
+                      ? `Reordered "${c.subTheme}" in ${c.from}`
+                      : `Moved "${c.subTheme}" from ${c.from} to ${c.to}`,
+                  timestamp: new Date(c.timestamp || Date.now()),
+                  reverted: false,
+                }))}
+                onClearChanges={() => setChangesLog([])}
+                onRevertChange={() => {}}
+                onRevertAllChanges={() => setChangesLog([])}
               />
             </div>
           </section>
