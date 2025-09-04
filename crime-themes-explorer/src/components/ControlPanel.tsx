@@ -1,6 +1,12 @@
 import React from "react";
 
-const ControlPanel = ({ changesCount, onReset, onExport }) => {
+interface Props {
+  changesCount: number;
+  onReset: () => void;
+  onExport: () => void;
+}
+
+const ControlPanel: React.FC<Props> = ({ changesCount, onReset, onExport }) => {
   return (
     <div className="control-panel">
       <div className="panel-left">

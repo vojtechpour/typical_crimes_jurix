@@ -38,10 +38,12 @@ const ScriptRunner = () => {
   const [bulkRegenerating, setBulkRegenerating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(null);
   const [model, setModel] = useState("gemini-2.0-flash");
+  const [selectedInstructionPills, setSelectedInstructionPills] = useState([]);
 
   const wsRef = useRef(null);
   const outputRef = useRef(null);
   const intervalRef = useRef(null);
+  const globalTextRef = useRef(null);
 
   useEffect(() => {
     connectWebSocket();
@@ -285,6 +287,21 @@ const ScriptRunner = () => {
     }
   };
 
+  const hasAnyInstruction = () =>
+    selectedInstructionPills.length > 0 || (globalInstructions || "").trim();
+
+  const buildEffectiveInstructions = () => {
+    const pillsText = selectedInstructionPills.join(". ");
+    const freeText = (globalInstructions || "").trim();
+    return [pillsText, freeText].filter(Boolean).join(". ").trim();
+  };
+
+  const toggleInstructionPill = (pill) => {
+    setSelectedInstructionPills((prev) =>
+      prev.includes(pill) ? prev.filter((p) => p !== pill) : [...prev, pill]
+    );
+  };
+
   const checkScriptStatus = async () => {
     try {
       const response = await fetch("/api/script/status");
@@ -304,13 +321,14 @@ const ScriptRunner = () => {
       try {
         console.log(`[AI] Starting Phase 2 analysis with model: ${model}`);
       } catch {}
+      const effectiveInstructions = buildEffectiveInstructions();
       const response = await fetch("/api/script/execute", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          globalInstructions: globalInstructions.trim(),
+          globalInstructions: effectiveInstructions,
           model,
         }),
       });
@@ -320,7 +338,7 @@ const ScriptRunner = () => {
       if (response.ok) {
         setIsRunning(true);
         setStartTime(Date.now());
-        const methodUsed = globalInstructions.trim()
+        const methodUsed = hasAnyInstruction()
           ? "with custom instructions"
           : "using best practices";
         addOutput(`🔄 Starting Phase 2 analysis ${methodUsed}...`, "info");
@@ -501,6 +519,7 @@ const ScriptRunner = () => {
           } with model: ${model}`
         );
       } catch {}
+      const effectiveInstructions = buildEffectiveInstructions();
       const response = await fetch("/api/script/execute", {
         method: "POST",
         headers: {
@@ -508,7 +527,7 @@ const ScriptRunner = () => {
         },
         body: JSON.stringify({
           dataFile: filename,
-          globalInstructions: globalInstructions.trim(),
+          globalInstructions: effectiveInstructions,
           model,
         }),
       });
@@ -518,7 +537,7 @@ const ScriptRunner = () => {
       if (response.ok) {
         setIsRunning(true);
         setStartTime(Date.now());
-        const methodUsed = globalInstructions.trim()
+        const methodUsed = hasAnyInstruction()
           ? "with custom instructions"
           : "using best practices";
         addOutput(
@@ -1167,7 +1186,7 @@ const ScriptRunner = () => {
   };
 
   const handleBulkRegenerate = async () => {
-    if (!globalInstructions.trim()) {
+    if (!hasAnyInstruction()) {
       addOutput(
         "❌ Please enter instructions before bulk regenerating codes",
         "error"
@@ -1191,7 +1210,7 @@ const ScriptRunner = () => {
       setBulkProgress({ current: 0, total: 0, status: "Starting..." });
 
       addOutput(
-        `🔄 Starting bulk regeneration of existing codes with instructions: "${globalInstructions.trim()}"`,
+        `🔄 Starting bulk regeneration of existing codes with instructions: "${buildEffectiveInstructions()}"`,
         "info"
       );
 
@@ -1201,7 +1220,7 @@ const ScriptRunner = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ instructions: globalInstructions.trim() }),
+        body: JSON.stringify({ instructions: buildEffectiveInstructions() }),
       });
 
       const result = await response.json();
@@ -1411,30 +1430,69 @@ const ScriptRunner = () => {
                   "Highlight offender behavior patterns",
                   "Create detailed, specific codes",
                   "Focus on temporal aspects",
-                ].map((ex) => (
+                  "Capture location and setting details",
+                  "Note modus operandi",
+                  "Tag items and property types",
+                  "Describe entry/exit methods",
+                  "Include witness or evidence references",
+                  "Record time-of-day and duration",
+                ].map((pill) => (
                   <button
-                    key={ex}
+                    key={pill}
                     type="button"
-                    className="badge"
-                    onClick={() => handleExampleClick(ex)}
-                    title={ex}
+                    className={`badge ${
+                      selectedInstructionPills.includes(pill) ? "success" : ""
+                    }`}
+                    onClick={() => toggleInstructionPill(pill)}
+                    title={pill}
+                    aria-pressed={selectedInstructionPills.includes(pill)}
+                    style={{ cursor: "pointer" }}
                   >
-                    {ex}
+                    {pill}
                   </button>
                 ))}
               </div>
             </div>
 
-            <textarea
-              value={globalInstructions}
-              onChange={(e) => setGlobalInstructions(e.target.value)}
-              placeholder="Enter your instructions for code generation across all cases, or leave blank to use comprehensive best practices..."
-              className="global-instructions-textarea"
-              rows={3}
-            />
+            <div className="instructions-input-wrapper">
+              {/* Pills overlay inside input */}
+              {selectedInstructionPills.length > 0 && (
+                <div className="instructions-pills-overlay" aria-hidden>
+                  {selectedInstructionPills.map((pill) => (
+                    <span key={pill} className="instructions-pill">
+                      {pill}
+                      <button
+                        type="button"
+                        className="remove"
+                        title={`Remove ${pill}`}
+                        onClick={() =>
+                          setSelectedInstructionPills((prev) =>
+                            prev.filter((p) => p !== pill)
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <textarea
+                ref={globalTextRef}
+                value={globalInstructions}
+                onChange={(e) => setGlobalInstructions(e.target.value)}
+                placeholder="Enter your instructions for code generation across all cases, or select pills above. Left blank uses comprehensive best practices."
+                className="global-instructions-textarea"
+                rows={3}
+                style={{
+                  paddingTop: selectedInstructionPills.length ? 44 : undefined,
+                }}
+              />
+            </div>
 
             <div className="row" style={{ gap: 8 }}>
-              {globalInstructions.trim() ? (
+              {hasAnyInstruction() ? (
                 <span className="badge success">Using custom instructions</span>
               ) : (
                 <span className="badge info">

@@ -11,6 +11,8 @@ import DragDropContainer from "./DragDropContainer";
 import ControlPanel from "./ControlPanel";
 import ChangeTracker from "./ChangeTracker";
 import Statistics from "./Statistics";
+import Modal from "./ui/Modal";
+import Toolbar from "./ui/Toolbar";
 
 interface DataBrowserProps {
   specificFile?: string | null;
@@ -152,6 +154,7 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
       themeAnalysis: {},
       temporalAnalysis: {},
       qualityMetrics: {},
+      pipelineCoverage: {},
     };
 
     // Analyze all fields
@@ -217,12 +220,12 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
       };
 
       // Common words analysis (simple)
-      const allWords = descriptions
-        .join(" ")
-        .toLowerCase()
-        .replace(/[^\w\s]/g, " ")
-        .split(/\s+/)
-        .filter((word: string) => word.length > 3);
+      const allWords =
+        descriptions
+          .join(" ")
+          .toLowerCase()
+          // Unicode-aware: keep letters with diacritics, extract words length ≥ 4
+          .match(/\p{L}{4,}/gu) || [];
 
       const wordFreq: Record<string, number> = {};
       allWords.forEach((word: string) => {
@@ -337,6 +340,66 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
       ).length,
     };
 
+    // Pipeline coverage (P2–P4)
+    const hasNonEmpty = (val: any) => {
+      if (val === null || val === undefined) return false;
+      if (Array.isArray(val)) return val.length > 0;
+      if (typeof val === "object") return Object.keys(val).length > 0;
+      return val.toString().trim().length > 0;
+    };
+
+    // Stage P2: any initial code present
+    const p2Count = items.filter((item) => {
+      // arrays
+      if (Array.isArray(item.initial_codes) && item.initial_codes.length > 0)
+        return true;
+      // common fields
+      if (["initial_code", "initial_code_0"].some((k) => hasNonEmpty(item[k])))
+        return true;
+      // any field starting with initial_code
+      const anyPrefixed = Object.keys(item).some(
+        (k) => k.startsWith("initial_code") && hasNonEmpty((item as any)[k])
+      );
+      return anyPrefixed;
+    }).length;
+
+    // Stage P3: candidate theme
+    const p3Count = items.filter((item) =>
+      hasNonEmpty(item.candidate_theme)
+    ).length;
+
+    // Stage P3b: English variant(s)
+    const p3bCount = items.filter(
+      (item) =>
+        hasNonEmpty(item.Varianta_EN) || hasNonEmpty(item.Varianta_EN_gpt4)
+    ).length;
+
+    // Stage P4: final theme
+    const p4Count = items.filter((item) => hasNonEmpty(item.theme)).length;
+
+    (stats.pipelineCoverage as any) = {
+      P2: {
+        fields: ["initial_code_*", "initial_codes"],
+        count: p2Count,
+        coverage: ((p2Count / items.length) * 100).toFixed(1),
+      },
+      P3: {
+        fields: ["candidate_theme"],
+        count: p3Count,
+        coverage: ((p3Count / items.length) * 100).toFixed(1),
+      },
+      P3b: {
+        fields: ["Varianta_EN", "Varianta_EN_gpt4"],
+        count: p3bCount,
+        coverage: ((p3bCount / items.length) * 100).toFixed(1),
+      },
+      P4: {
+        fields: ["theme"],
+        count: p4Count,
+        coverage: ((p4Count / items.length) * 100).toFixed(1),
+      },
+    };
+
     return stats;
   };
 
@@ -394,16 +457,17 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
           throw new Error("No case records found in the file");
         }
 
-        // Check for required field in each case record
+        // Check for required field in each case record (short or full)
         const caseRecords = Object.values(jsonData);
-        const hasRequiredField = (caseRecords as any[]).every(
-          (item) =>
-            item && typeof item === "object" && (item as any).plny_skutek_short
-        );
+        const hasRequiredField = (caseRecords as any[]).every((item) => {
+          if (!item || typeof item !== "object") return false;
+          const rec = item as any;
+          return !!(rec.plny_skutek_short || rec.plny_skutek);
+        });
 
         if (!hasRequiredField) {
           throw new Error(
-            "All case records must have 'plny_skutek_short' field"
+            "Each case must have either 'plny_skutek_short' or 'plny_skutek'"
           );
         }
 
@@ -431,11 +495,29 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
     }
   };
 
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (selectedFile) {
+        loadFileData(selectedFile.name, 1, searchTerm);
+      }
+    }
+  };
+
   const handlePageChange = (newPage: number) => {
     if (selectedFile) {
       loadFileData(selectedFile.name, newPage, searchTerm);
     }
   };
+
+  // Debounced search when query changes
+  useEffect(() => {
+    if (!selectedFile) return;
+    const timeoutId = setTimeout(() => {
+      loadFileData(selectedFile.name, 1, searchTerm);
+    }, 350);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, selectedFile]);
 
   const formatSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes";
@@ -459,8 +541,9 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
         return (
           <div className="long-text">
             <details>
-              <summary>{value.substring(0, 200)}...</summary>
-              <div className="full-text">{value}</div>
+              <summary>
+                <span className="expandable-text">{value}</span>
+              </summary>
             </details>
           </div>
         );
@@ -934,7 +1017,7 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
   return (
     <div className="data-browser">
       <div className="data-browser-header">
-        <h2>📊 Data & Theme Explorer</h2>
+        <h2>Data & Theme Explorer</h2>
         <p>Upload, browse, and explore themes from your crime data files</p>
       </div>
 
@@ -951,18 +1034,19 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
       )}
 
       {/* File Upload Section (redesigned) */}
-      <section className="card">
-        <div className="card-header row">
-          <h3>Upload data file</h3>
-          <span className="muted">JSON, object of case records</span>
-        </div>
+      <section className="card soft">
+        <Toolbar
+          title="Upload data file"
+          subtitle="JSON, object of case records"
+        />
         <div className="card-body">
           <div
             id="upload-help"
             className="muted"
             style={{ marginBottom: "8px" }}
           >
-            Each record must include <code>plny_skutek_short</code>. Max 50 MB.
+            Each record must include <code>plny_skutek_short</code> or
+            <code> plny_skutek</code>. Max 50 MB.
           </div>
 
           <details className="muted" style={{ marginBottom: "12px" }}>
@@ -970,13 +1054,13 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
             <div className="json-example" style={{ marginTop: "8px" }}>
               <pre>{`{
   "case_id_1": {
-    "plny_skutek_short": "Brief description of the crime",
-    "theme": "Crime theme (optional)",
-    "candidate_theme": "Alternative theme (optional)",
-    "initial_code": "Initial classification (optional)"
+    "plny_skutek": "Full case text (if you don't provide a short)",
+    "theme": "(optional)",
+    "candidate_theme": "(optional)",
+    "initial_code": "(optional)"
   },
   "case_id_2": {
-    "plny_skutek_short": "Another crime description"
+    "plny_skutek_short": "Short case description (preferred if available)"
   }
 }`}</pre>
             </div>
@@ -1068,10 +1152,12 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
 
       {/* File Management Section (redesigned) */}
       <section className="card">
-        <div className="card-header row">
-          <h3>Uploaded files</h3>
-          {loading && <span className="badge info">Loading…</span>}
-        </div>
+        <Toolbar
+          title="Uploaded files"
+          actions={
+            loading ? <span className="badge info">Loading…</span> : null
+          }
+        />
         <div className="card-body">
           {error && <div className="error-message">{error}</div>}
 
@@ -1087,21 +1173,22 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
                   key={file.name}
                   role="listitem"
                   aria-selected={selectedFile?.name === file.name}
-                  className="row"
+                  className="row file-row"
                   style={{
                     justifyContent: "space-between",
-                    padding: "8px 0",
+                    alignItems: "center",
+                    padding: "6px 0",
                     borderBottom: "1px solid var(--border)",
                   }}
                 >
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{file.name}</div>
-                    <div className="muted" style={{ display: "flex", gap: 12 }}>
-                      <span>{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="file-name">{file.name}</div>
+                    <div className="file-meta">
+                      <span>{formatSize(file.size)}</span>
                       <span>{new Date(file.modified).toLocaleString()}</span>
                     </div>
                   </div>
-                  <div className="row">
+                  <div className="row file-actions">
                     <button
                       onClick={() => handleFileSelect(file)}
                       className="btn subtle"
@@ -1132,10 +1219,14 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
           {/* File Statistics Section */}
           {fileStats && (
             <section className="card soft">
-              <div className="card-header row">
-                <h3>File statistics — {selectedFile.name}</h3>
-                {loadingStats && <span className="badge info">Analyzing…</span>}
-              </div>
+              <Toolbar
+                title={<>File statistics — {selectedFile.name}</>}
+                actions={
+                  loadingStats ? (
+                    <span className="badge info">Analyzing…</span>
+                  ) : null
+                }
+              />
               <div className="card-body">
                 {/* Overview: compact badges matching academic UI */}
                 <div
@@ -1167,6 +1258,8 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
                     <span className="muted">Required fields</span>
                   </span>
                 </div>
+
+                {/* Pipeline coverage section removed per user request */}
 
                 {/* Field analysis as research table */}
                 <div className="stats-section" style={{ marginTop: 8 }}>
@@ -1360,21 +1453,59 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
                     </thead>
                     <tbody>
                       <tr>
-                        <td>Overall completeness</td>
-                        <td>{fileStats.qualityMetrics.completenessScore}%</td>
-                      </tr>
-                      <tr>
                         <td>Duplicate records</td>
                         <td className="cell-mono">
                           {fileStats.qualityMetrics.duplicateIds}
                         </td>
                       </tr>
-                      <tr>
-                        <td>Empty records</td>
-                        <td className="cell-mono">
-                          {fileStats.qualityMetrics.emptyRecords}
-                        </td>
-                      </tr>
+                      {fileStats.pipelineCoverage && (
+                        <>
+                          <tr>
+                            <td>P2 completion</td>
+                            <td className="cell-mono">
+                              {(
+                                fileStats.pipelineCoverage as any
+                              ).P2.count.toLocaleString()}{" "}
+                              of {fileStats.totalRecords.toLocaleString()} (
+                              {(fileStats.pipelineCoverage as any).P2.coverage}
+                              %)
+                            </td>
+                          </tr>
+                          <tr>
+                            <td>P3 completion</td>
+                            <td className="cell-mono">
+                              {(
+                                fileStats.pipelineCoverage as any
+                              ).P3.count.toLocaleString()}{" "}
+                              of {fileStats.totalRecords.toLocaleString()} (
+                              {(fileStats.pipelineCoverage as any).P3.coverage}
+                              %)
+                            </td>
+                          </tr>
+                          <tr>
+                            <td>P3b completion</td>
+                            <td className="cell-mono">
+                              {(
+                                fileStats.pipelineCoverage as any
+                              ).P3b.count.toLocaleString()}{" "}
+                              of {fileStats.totalRecords.toLocaleString()} (
+                              {(fileStats.pipelineCoverage as any).P3b.coverage}
+                              %)
+                            </td>
+                          </tr>
+                          <tr>
+                            <td>P4 completion</td>
+                            <td className="cell-mono">
+                              {(
+                                fileStats.pipelineCoverage as any
+                              ).P4.count.toLocaleString()}{" "}
+                              of {fileStats.totalRecords.toLocaleString()} (
+                              {(fileStats.pipelineCoverage as any).P4.coverage}
+                              %)
+                            </td>
+                          </tr>
+                        </>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1384,18 +1515,31 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
 
           {/* Data Browser Section (redesigned) */}
           <section className="card soft">
-            <div className="card-header row">
-              <h3>{selectedFile.name}</h3>
-              <span className="spacer" />
-              <input
-                type="text"
-                placeholder="Search data"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input"
-                aria-label="Search data"
-              />
-            </div>
+            <Toolbar
+              title={selectedFile.name}
+              actions={
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Search data"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={handleSearchKeyDown}
+                    className="input"
+                    aria-label="Search data"
+                  />
+                  {searchTerm && (
+                    <span className="muted" aria-live="polite">
+                      {loadingData
+                        ? "Searching…"
+                        : `${(fileData?.total ?? 0).toLocaleString()} results`}
+                    </span>
+                  )}
+                </div>
+              }
+            />
             <div className="card-body">
               {loadingData ? (
                 <div className="loading">Loading data…</div>
@@ -1417,9 +1561,7 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
         activeMode === "themes" &&
         Object.keys(modifiedThemes).length > 0 && (
           <section className="card">
-            <div className="card-header row">
-              <h3>Theme Explorer — {selectedFile.name}</h3>
-            </div>
+            <Toolbar title={<>Theme Explorer — {selectedFile.name}</>} />
             <div className="card-body">
               <ControlPanel
                 changesCount={changesLog.length}
@@ -1482,33 +1624,28 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
         )}
 
       {/* Delete Confirmation Dialog */}
-      {deleteConfirm && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>🗑️ Confirm Deletion</h3>
-            </div>
-            <div className="modal-body">
-              <p>
-                Are you sure you want to delete <strong>{deleteConfirm}</strong>
-                ?
-              </p>
-              <p className="warning-text">
-                ⚠️ This action cannot be undone. The file will be permanently
-                removed.
-              </p>
-            </div>
-            <div className="modal-actions">
-              <button onClick={cancelDelete} className="cancel-btn">
-                Cancel
-              </button>
-              <button onClick={confirmDelete} className="delete-confirm-btn">
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        isOpen={!!deleteConfirm}
+        title="🗑️ Confirm Deletion"
+        onClose={cancelDelete}
+        actions={
+          <>
+            <button onClick={cancelDelete} className="cancel-btn">
+              Cancel
+            </button>
+            <button onClick={confirmDelete} className="delete-confirm-btn">
+              Delete
+            </button>
+          </>
+        }
+      >
+        <p>
+          Are you sure you want to delete <strong>{deleteConfirm}</strong>?
+        </p>
+        <p className="warning-text">
+          ⚠️ This action cannot be undone. The file will be permanently removed.
+        </p>
+      </Modal>
     </div>
   );
 };

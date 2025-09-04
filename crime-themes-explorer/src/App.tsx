@@ -44,7 +44,10 @@ export default function App() {
     window.addEventListener("switchToDataBrowser", onSwitch as EventListener);
     window.addEventListener("clearSpecificFile", onClear as EventListener);
     return () => {
-      window.removeEventListener("switchToDataBrowser", onSwitch as EventListener);
+      window.removeEventListener(
+        "switchToDataBrowser",
+        onSwitch as EventListener
+      );
       window.removeEventListener("clearSpecificFile", onClear as EventListener);
     };
   }, []);

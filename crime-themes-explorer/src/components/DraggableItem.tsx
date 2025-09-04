@@ -1,7 +1,13 @@
 import React from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 
-const DraggableItem = ({ id, text, index }) => {
+interface Props {
+  id: string;
+  text: string;
+  index: number;
+}
+
+const DraggableItem: React.FC<Props> = ({ id, text, index }) => {
   const {
     attributes,
     listeners,
@@ -29,7 +35,7 @@ const DraggableItem = ({ id, text, index }) => {
   });
 
   // Combine both refs
-  const setNodeRef = (node) => {
+  const setNodeRef = (node: HTMLElement | null) => {
     setDragNodeRef(node);
     setDropNodeRef(node);
   };
@@ -38,7 +44,7 @@ const DraggableItem = ({ id, text, index }) => {
     ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
         zIndex: 9999,
-        position: "relative",
+        position: "relative" as const,
       }
     : {};
 

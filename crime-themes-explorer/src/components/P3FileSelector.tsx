@@ -1,6 +1,16 @@
 import React from "react";
 
-const P3FileSelector = ({
+interface FileInfo {
+  name: string;
+  size: number;
+}
+interface Props {
+  availableFiles: FileInfo[];
+  selectedDataFile: string;
+  setSelectedDataFile: (v: string) => void;
+}
+
+const P3FileSelector: React.FC<Props> = ({
   availableFiles,
   selectedDataFile,
   setSelectedDataFile,

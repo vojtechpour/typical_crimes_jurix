@@ -1,6 +1,14 @@
 import React from "react";
 
-const ThemeSelector = ({
+interface Props {
+  themeNames: string[];
+  leftTheme: string;
+  rightTheme: string;
+  onLeftThemeChange: (v: string) => void;
+  onRightThemeChange: (v: string) => void;
+}
+
+const ThemeSelector: React.FC<Props> = ({
   themeNames,
   leftTheme,
   rightTheme,
