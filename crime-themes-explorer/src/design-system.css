@@ -12,9 +12,21 @@
   --brand-800: #3730a3;
   --brand-900: #312e81;
 
+  /* Secondary accent (teal) */
+  --secondary-400: #2dd4bf;
+  --secondary-500: #14b8a6;
+  --secondary-600: #0d9488;
+
   --accent-400: #fbbf24; /* restrained use: progress only */
   --accent-500: #f59e0b;
   --accent-600: #d97706;
+
+  /* Gradients */
+  --gradient-brand: linear-gradient(
+    135deg,
+    var(--brand-600),
+    var(--secondary-500)
+  );
 
   /* Semantic */
   --success-500: #16a34a;

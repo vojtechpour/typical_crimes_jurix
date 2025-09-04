@@ -1,19 +1,34 @@
 import React from "react";
 
-const ChangeTracker = ({
+type Change = {
+  id: string | number;
+  type: string;
+  description: string;
+  timestamp: Date;
+  reverted?: boolean;
+};
+
+interface Props {
+  changes: Change[];
+  onClearChanges: () => void;
+  onRevertChange: (id: string | number) => void;
+  onRevertAllChanges: () => void;
+}
+
+const ChangeTracker: React.FC<Props> = ({
   changes,
   onClearChanges,
   onRevertChange,
   onRevertAllChanges,
 }) => {
-  const formatTimestamp = (timestamp) => {
+  const formatTimestamp = (timestamp: Date) => {
     return timestamp.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
   };
 
-  const getChangeIcon = (type) => {
+  const getChangeIcon = (type: string) => {
     switch (type) {
       case "theme":
         return "↔️";

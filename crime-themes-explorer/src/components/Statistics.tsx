@@ -1,10 +1,20 @@
 import React from "react";
 
-const Statistics = ({ modifiedThemes, originalThemes, changesLog }) => {
+interface Props {
+  modifiedThemes: Record<string, string[]>;
+  originalThemes: Record<string, string[]>;
+  changesLog: any[];
+}
+
+const Statistics: React.FC<Props> = ({
+  modifiedThemes,
+  originalThemes,
+  changesLog,
+}) => {
   const getTotalChanges = () => changesLog.length;
 
   const getThemesModified = () => {
-    const changedThemes = new Set();
+    const changedThemes = new Set<string>();
     changesLog.forEach((change) => {
       if (change.action === "move") {
         changedThemes.add(change.from);

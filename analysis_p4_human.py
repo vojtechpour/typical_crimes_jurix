@@ -85,7 +85,7 @@ num_dp = 0
 for id_slt, data_point in data.items():
     if OUTPUT_FIELD in data_point and data_point[OUTPUT_FIELD]:
         continue
-    dp_len = len(encoding.encode(data_point['plny_skutek_short'])) + 10
+    dp_len = len(encoding.encode(data_point.get('plny_skutek_short') or data_point.get('plny_skutek') or '')) + 10
     if prompt_length_base + data_prompt_len + dp_len > PROMPT_LIMIT:
         print(f'Submitted {data_prompt_len} data tokens ({num_dp} data points).')
         user_prompt = construct_user_prompt(themes)
@@ -111,9 +111,10 @@ for id_slt, data_point in data.items():
         with open(DATA_FILE, 'w', encoding='utf8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         num_dp = 0
+    case_text = data_point.get('plny_skutek_short') or data_point.get('plny_skutek') or ''
     data_prompt += (
         f'ID: {id_slt}\n'
-        f'{data_point["plny_skutek_short"]}\n'
+        f'{case_text}\n'
         f'---\n\n'
     )
     data_prompt_len = len(encoding.encode(data_prompt))

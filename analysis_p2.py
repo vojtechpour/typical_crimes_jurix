@@ -260,9 +260,11 @@ for id_slt, data_point in data.items():
     user_prompt = construct_user_prompt(candidate_codes, args.global_instructions)
     
     # Create data prompt for single case
+    # Prefer short text; fallback to full if short missing
+    case_text = data_point.get("plny_skutek_short") or data_point.get("plny_skutek") or ""
     case_data_prompt = (
         f'ID: {id_slt}\n'
-        f'{data_point["plny_skutek_short"]}\n'
+        f'{case_text}\n'
         f'---\n\n'
     )
     user_prompt_w_data = user_prompt.replace('{{DATA}}', case_data_prompt)

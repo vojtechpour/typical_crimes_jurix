@@ -2,7 +2,19 @@ import React from "react";
 import { useDroppable } from "@dnd-kit/core";
 import DraggableItem from "./DraggableItem";
 
-const DragDropContainer = ({ theme, items, originalCount, side }) => {
+interface Props {
+  theme: string;
+  items: string[];
+  originalCount: number;
+  side: "left" | "right";
+}
+
+const DragDropContainer: React.FC<Props> = ({
+  theme,
+  items,
+  originalCount,
+  side,
+}) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `container-${theme}`,
     data: {
@@ -51,7 +63,7 @@ const DragDropContainer = ({ theme, items, originalCount, side }) => {
             <p>No items - drag items here</p>
           </div>
         ) : (
-          <div className="items-list">
+          <div className="items-list" ref={setNodeRef}>
             {items.map((item, index) => (
               <DraggableItem
                 key={`${item}|||${theme}|||${index}`}

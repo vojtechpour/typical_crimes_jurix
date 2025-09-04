@@ -1,15 +1,35 @@
 import React, { useState, useEffect } from "react";
 
-const SuggestionItem = ({
+type Suggestion = {
+  id: string | number;
+  type: string;
+  title?: string;
+  description?: string;
+  confidence?: number;
+  action: any;
+};
+
+interface Props {
+  suggestion: Suggestion;
+  onApply: (s: Suggestion) => void;
+  onReject: (s: Suggestion) => void;
+  onFollowUp: (
+    text: string,
+    chatId?: string | number | null
+  ) => Promise<void> | void;
+  aiResponse?: any;
+}
+
+const SuggestionItem: React.FC<Props> = ({
   suggestion,
   onApply,
   onReject,
   onFollowUp,
   aiResponse,
 }) => {
-  const [chatMessages, setChatMessages] = useState([]);
-  const [currentMessage, setCurrentMessage] = useState("");
-  const [isProcessingChat, setIsProcessingChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [currentMessage, setCurrentMessage] = useState<string>("");
+  const [isProcessingChat, setIsProcessingChat] = useState<boolean>(false);
 
   // Handle incoming AI responses for this chat
   useEffect(() => {
@@ -61,14 +81,14 @@ const SuggestionItem = ({
     }
   };
 
-  const handleChatKeyPress = (e) => {
+  const handleChatKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleChatSubmit();
     }
   };
 
-  const getSuggestionIcon = (type) => {
+  const getSuggestionIcon = (type: string) => {
     switch (type) {
       case "move":
         return "🔄";
@@ -87,13 +107,13 @@ const SuggestionItem = ({
     }
   };
 
-  const getConfidenceColor = (confidence) => {
+  const getConfidenceColor = (confidence: number = 0) => {
     if (confidence >= 0.8) return "high-confidence";
     if (confidence >= 0.6) return "medium-confidence";
     return "low-confidence";
   };
 
-  const renderActionDetails = (action) => {
+  const renderActionDetails = (action: any) => {
     if (!action || !action.type) {
       return <span className="action-detail">Invalid action data</span>;
     }
@@ -203,7 +223,7 @@ const SuggestionItem = ({
                     <div className="message-details">
                       {Array.isArray(action.details) ? (
                         <ul>
-                          {action.details.map((detail, index) => (
+                          {action.details.map((detail: any, index: number) => (
                             <li key={index}>{detail}</li>
                           ))}
                         </ul>
@@ -243,9 +263,11 @@ const SuggestionItem = ({
                       <div className="message-details">
                         {Array.isArray(message.details) ? (
                           <ul>
-                            {message.details.map((detail, index) => (
-                              <li key={index}>{detail}</li>
-                            ))}
+                            {message.details.map(
+                              (detail: any, index: number) => (
+                                <li key={index}>{detail}</li>
+                              )
+                            )}
                           </ul>
                         ) : (
                           <p>{message.details}</p>
@@ -334,14 +356,14 @@ const SuggestionItem = ({
                 suggestion.confidence
               )}`}
             >
-              {Math.round(suggestion.confidence * 100)}%
+              {Math.round((suggestion.confidence || 0) * 100)}%
             </span>
           )}
         </div>
 
         <p className="suggestion-description">{suggestion.description}</p>
 
-        {suggestion.action.reason && !isAnswerType && (
+        {suggestion.action?.reason && !isAnswerType && (
           <p className="suggestion-reason">
             <strong>Reasoning:</strong> {suggestion.action.reason}
           </p>
