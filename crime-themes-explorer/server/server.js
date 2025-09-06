@@ -720,7 +720,7 @@ app.delete("/api/data/:filename/codes", (req, res) => {
 app.post("/api/data/:filename/case/:caseId/regenerate", (req, res) => {
   try {
     const { filename, caseId } = req.params;
-    const { instructions } = req.body;
+    const { instructions, model } = req.body;
 
     // Instructions are optional - empty string will trigger universal prompt
     const userInstructions = instructions || "";
@@ -782,10 +782,25 @@ app.post("/api/data/:filename/case/:caseId/regenerate", (req, res) => {
     const pythonExe =
       "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
 
+    // Determine provider and propagate selected model via env like Phase 2
+    let provider = "gemini";
+    const envVars = { ...process.env };
+    if (model && typeof model === "string") {
+      if (model.startsWith("gpt-")) {
+        provider = "openai";
+        envVars.OPENAI_MODEL = model;
+      } else {
+        provider = "gemini";
+        envVars.GEMINI_MODEL = model;
+      }
+    }
+    envVars.MODEL_PROVIDER = provider;
+
     // Spawn Python process for regeneration
     const pythonProcess = spawn(pythonExe, regenerationArgs, {
       cwd: path.dirname(regenerationScript),
       stdio: ["pipe", "pipe", "pipe"],
+      env: envVars,
     });
 
     let outputData = "";
@@ -1116,9 +1131,23 @@ app.post("/api/p3/execute", (req, res) => {
 
     console.log(`Executing: python3 ${pythonArgs.join(" ")}`);
 
+    // Determine provider and set env similarly to Phase 2 route
+    let provider = "gemini";
+    const envVars = { ...process.env };
+    if (model && typeof model === "string") {
+      if (model.startsWith("gpt-")) {
+        provider = "openai";
+        envVars.OPENAI_MODEL = model;
+      } else {
+        provider = "gemini";
+        envVars.GEMINI_MODEL = model;
+      }
+    }
+    envVars.MODEL_PROVIDER = provider;
+
     p3ScriptProcess = spawn(PYTHON_VENV, pythonArgs, {
       cwd: __dirname + "/../..",
-      env: { ...process.env, GEMINI_MODEL: model || process.env.GEMINI_MODEL },
+      env: envVars,
     });
 
     let outputData = "";
@@ -1283,9 +1312,23 @@ function startP3bAnalysis(dataFile, model) {
 
     console.log(`Executing P3b: python3 ${pythonArgs.join(" ")}`);
 
+    // Carry model/provider from P3 into P3b
+    let provider = "gemini";
+    const envVars = { ...process.env };
+    if (model && typeof model === "string") {
+      if (model.startsWith("gpt-")) {
+        provider = "openai";
+        envVars.OPENAI_MODEL = model;
+      } else {
+        provider = "gemini";
+        envVars.GEMINI_MODEL = model;
+      }
+    }
+    envVars.MODEL_PROVIDER = provider;
+
     p3bScriptProcess = spawn(PYTHON_VENV, pythonArgs, {
       cwd: __dirname + "/../..",
-      env: { ...process.env, GEMINI_MODEL: model || process.env.GEMINI_MODEL },
+      env: envVars,
     });
 
     let p3bOutputData = "";

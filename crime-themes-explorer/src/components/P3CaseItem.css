@@ -13,14 +13,7 @@
   font-size: 14px;
 }
 
-.case-metadata .existing-indicator {
-  background: var(--surface-2);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-}
+/* existing-indicator removed */
 
 .case-metadata .generation-time {
   color: var(--text-muted);
