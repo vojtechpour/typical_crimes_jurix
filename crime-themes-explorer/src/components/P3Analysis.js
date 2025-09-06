@@ -596,6 +596,9 @@ const P3Analysis = () => {
             <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
             <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
             <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
+            <option value="gpt-5-mini-2025-08-07">gpt-5-mini-2025-08-07</option>
+            <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07</option>
           </select>
         </div>
         <span className="spacer" />

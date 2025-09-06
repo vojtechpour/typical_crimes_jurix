@@ -1,4 +1,44 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
+import {
+  FiEdit2,
+  FiTrash2,
+  FiCheck,
+  FiX,
+  FiRefreshCw,
+  FiPlus,
+  FiLoader,
+  FiFileText,
+  FiTag,
+  FiEdit3,
+  FiInfo,
+  FiCheckCircle,
+  FiXCircle,
+} from "react-icons/fi";
+import type { IconBaseProps } from "react-icons";
+
+// Typed wrappers to satisfy TS JSX Element return types
+const IconCheck: React.FC<IconBaseProps> =
+  FiCheckCircle as unknown as React.FC<IconBaseProps>;
+const IconX: React.FC<IconBaseProps> =
+  FiXCircle as unknown as React.FC<IconBaseProps>;
+const IconEdit2: React.FC<IconBaseProps> =
+  FiEdit2 as unknown as React.FC<IconBaseProps>;
+const IconTrash2: React.FC<IconBaseProps> =
+  FiTrash2 as unknown as React.FC<IconBaseProps>;
+const IconRefreshCw: React.FC<IconBaseProps> =
+  FiRefreshCw as unknown as React.FC<IconBaseProps>;
+const IconPlus: React.FC<IconBaseProps> =
+  FiPlus as unknown as React.FC<IconBaseProps>;
+const IconLoader: React.FC<IconBaseProps> =
+  FiLoader as unknown as React.FC<IconBaseProps>;
+const IconFileText: React.FC<IconBaseProps> =
+  FiFileText as unknown as React.FC<IconBaseProps>;
+const IconTag: React.FC<IconBaseProps> =
+  FiTag as unknown as React.FC<IconBaseProps>;
+const IconEdit3: React.FC<IconBaseProps> =
+  FiEdit3 as unknown as React.FC<IconBaseProps>;
+const IconInfo: React.FC<IconBaseProps> =
+  FiInfo as unknown as React.FC<IconBaseProps>;
 
 type LogEntry = { id: number; text: string; timestamp: string; type: string };
 
@@ -52,6 +92,118 @@ type CodeGenerationItemProps = {
   isRegenerating: boolean;
 };
 
+type RegenerateModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (instructions: string) => void;
+  caseText: string;
+  currentCodes: string;
+};
+
+const RegenerateModal: React.FC<RegenerateModalProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  caseText,
+  currentCodes,
+}) => {
+  const [instructions, setInstructions] = useState<string>("");
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content regenerate-modal">
+        <div className="modal-header">
+          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <IconRefreshCw size={16} /> Regenerate Codes
+          </h3>
+        </div>
+        <div className="modal-body">
+          {caseText && (
+            <div className="case-preview">
+              <h4>Case Preview</h4>
+              <p className="case-text-preview">{caseText}</p>
+            </div>
+          )}
+
+          <div className="current-codes">
+            <h4>Current Codes</h4>
+            <div className="current-codes-display">{currentCodes}</div>
+          </div>
+
+          <div className="instructions-input">
+            <h4 style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <IconEdit3 size={14} /> Regeneration Instructions
+            </h4>
+            <p className="instructions-help">
+              Provide specific instructions for how you want the codes to be
+              generated. The AI will prioritize your guidance while ensuring
+              accuracy. Leave blank for comprehensive automatic coding.
+            </p>
+
+            <div className="instruction-examples">
+              <p>
+                <strong>Examples of useful instructions:</strong>
+              </p>
+              <ul className="example-list">
+                <li>
+                  "Focus more on victim characteristics and vulnerability
+                  factors"
+                </li>
+                <li>
+                  "Use more specific terminology for the type of theft/crime"
+                </li>
+                <li>"Emphasize environmental and contextual factors"</li>
+                <li>
+                  "Create codes that highlight offender behavior patterns"
+                </li>
+                <li>
+                  "Generate fewer, more general codes" or "Create more detailed,
+                  specific codes"
+                </li>
+                <li>"Focus on temporal aspects and timing of the crime"</li>
+              </ul>
+            </div>
+
+            <textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Enter your specific instructions here, or leave blank for comprehensive automatic coding based on best practices..."
+              className="instructions-textarea"
+              rows={4}
+              autoFocus
+            />
+
+            <div
+              className="instruction-tip"
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <IconInfo size={14} />
+              <span>
+                <strong>Tip:</strong> The more specific your instructions, the
+                better the AI can tailor the codes to your research needs.
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button onClick={onClose} className="btn ghost">
+            Cancel
+          </button>
+          <button
+            onClick={() => onSubmit(instructions)}
+            className="btn primary"
+          >
+            <IconRefreshCw size={14} />
+            <span style={{ marginLeft: 6 }}>Regenerate</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ScriptRunner: React.FC = () => {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [output, setOutput] = useState<LogEntry[]>([]);
@@ -79,25 +231,36 @@ const ScriptRunner: React.FC = () => {
 
   const [showRawLogs, setShowRawLogs] = useState<boolean>(false);
   const [showAllCodes, setShowAllCodes] = useState<boolean>(false);
-  const [editingCodes, setEditingCodes] = useState<Record<string | number, string[]>>({});
-  const [savingCodes, setSavingCodes] = useState<Record<string | number, boolean>>({});
-  const [regeneratingCodes, setRegeneratingCodes] = useState<Record<string | number, boolean>>({});
-  const [showRegenerateModal, setShowRegenerateModal] = useState<boolean>(false);
-  const [regenerateModalData, setRegenerateModalData] = useState<
-    | { caseId: string | number; caseText: string; currentCodes: string }
-    | null
-  >(null);
-  const [regenerateInstructions, setRegenerateInstructions] = useState<string>("");
+  const [editingCodes, setEditingCodes] = useState<
+    Record<string | number, string[]>
+  >({});
+  const [savingCodes, setSavingCodes] = useState<
+    Record<string | number, boolean>
+  >({});
+  const [regeneratingCodes, setRegeneratingCodes] = useState<
+    Record<string | number, boolean>
+  >({});
+  const [showRegenerateModal, setShowRegenerateModal] =
+    useState<boolean>(false);
+  const [regenerateModalData, setRegenerateModalData] = useState<{
+    caseId: string | number;
+    caseText: string;
+    currentCodes: string;
+  } | null>(null);
   const [globalInstructions, setGlobalInstructions] = useState<string>("");
   const [bulkRegenerating, setBulkRegenerating] = useState<boolean>(false);
   const [bulkProgress, setBulkProgress] = useState<BulkProgress>(null);
   const [model, setModel] = useState<string>("gemini-2.0-flash");
-  const [selectedInstructionPills, setSelectedInstructionPills] = useState<string[]>([]);
+  const [selectedInstructionPills, setSelectedInstructionPills] = useState<
+    string[]
+  >([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const outputRef = useRef<HTMLDivElement | null>(null);
   const intervalRef = useRef<number | null>(null);
   const globalTextRef = useRef<HTMLTextAreaElement | null>(null);
+  const pillsOverlayRef = useRef<HTMLDivElement | null>(null);
+  const [pillsOverlayHeight, setPillsOverlayHeight] = useState<number>(0);
 
   useEffect(() => {
     connectWebSocket();
@@ -112,23 +275,36 @@ const ScriptRunner: React.FC = () => {
     intervalRef.current = interval;
 
     const handleSwitchToDataBrowser = (event: Event) => {
-      const anyEvent = event as CustomEvent<{ tab?: number; filename?: string }>;
+      const anyEvent = event as CustomEvent<{
+        tab?: number;
+        filename?: string;
+      }>;
       if (anyEvent.detail && anyEvent.detail.filename) {
         window.dispatchEvent(
-          new CustomEvent("switchTab", { detail: { tab: 0, filename: anyEvent.detail.filename } })
+          new CustomEvent("switchTab", {
+            detail: { tab: 0, filename: anyEvent.detail.filename },
+          })
         );
       } else {
-        window.dispatchEvent(new CustomEvent("switchTab", { detail: { tab: 0 } }));
+        window.dispatchEvent(
+          new CustomEvent("switchTab", { detail: { tab: 0 } })
+        );
       }
     };
 
-    window.addEventListener("switchToDataBrowser", handleSwitchToDataBrowser as EventListener);
+    window.addEventListener(
+      "switchToDataBrowser",
+      handleSwitchToDataBrowser as EventListener
+    );
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
-      window.removeEventListener("switchToDataBrowser", handleSwitchToDataBrowser as EventListener);
+      window.removeEventListener(
+        "switchToDataBrowser",
+        handleSwitchToDataBrowser as EventListener
+      );
       if (wsRef.current) wsRef.current.close();
     };
   }, [isRunning, startTime]);
@@ -166,7 +342,9 @@ const ScriptRunner: React.FC = () => {
                 ? progressData.codes
                 : JSON.stringify([progressData.codes]),
               timestamp: new Date(progressData.timestamp),
-              caseText: (progressData.progress && progressData.progress.case_text) || "",
+              caseText:
+                (progressData.progress && progressData.progress.case_text) ||
+                "",
             };
 
             const existingIndex = prev.recentCompletions.findIndex(
@@ -200,9 +378,12 @@ const ScriptRunner: React.FC = () => {
             ...prev,
             phase: phaseData.phase,
             totalCases: phaseData.details.total_cases || prev.totalCases,
-            processedCases: phaseData.details.processed_cases || prev.processedCases,
-            uniqueCodesCount: phaseData.details.unique_codes || prev.uniqueCodesCount,
-            currentDataFile: phaseData.details.data_file || prev.currentDataFile,
+            processedCases:
+              phaseData.details.processed_cases || prev.processedCases,
+            uniqueCodesCount:
+              phaseData.details.unique_codes || prev.uniqueCodesCount,
+            currentDataFile:
+              phaseData.details.data_file || prev.currentDataFile,
           }));
           break;
         }
@@ -220,8 +401,14 @@ const ScriptRunner: React.FC = () => {
               `🔄 Regenerating case ${bulkData.case_id}... (${bulkData.current}/${bulkData.total})`,
               "info"
             );
-          } else if (bulkData.current === bulkData.total && bulkData.total > 0) {
-            addOutput(`✅ Bulk regeneration completed! Updated ${bulkData.total} cases.`, "success");
+          } else if (
+            bulkData.current === bulkData.total &&
+            bulkData.total > 0
+          ) {
+            addOutput(
+              `✅ Bulk regeneration completed! Updated ${bulkData.total} cases.`,
+              "success"
+            );
           }
           break;
         }
@@ -291,7 +478,8 @@ const ScriptRunner: React.FC = () => {
     }
   };
 
-  const hasAnyInstruction = () => selectedInstructionPills.length > 0 || (globalInstructions || "").trim();
+  const hasAnyInstruction = () =>
+    selectedInstructionPills.length > 0 || (globalInstructions || "").trim();
 
   const buildEffectiveInstructions = () => {
     const pillsText = selectedInstructionPills.join(". ");
@@ -321,13 +509,18 @@ const ScriptRunner: React.FC = () => {
       const response = await fetch("/api/script/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ globalInstructions: effectiveInstructions, model }),
+        body: JSON.stringify({
+          globalInstructions: effectiveInstructions,
+          model,
+        }),
       });
       const data = await response.json();
       if (response.ok) {
         setIsRunning(true);
         setStartTime(Date.now());
-        const methodUsed = hasAnyInstruction() ? "with custom instructions" : "using best practices";
+        const methodUsed = hasAnyInstruction()
+          ? "with custom instructions"
+          : "using best practices";
         addOutput(`🔄 Starting Phase 2 analysis ${methodUsed}...`, "info");
       } else {
         setError(data.error || "Failed to start script");
@@ -439,7 +632,9 @@ const ScriptRunner: React.FC = () => {
       addOutput("❌ No data file selected", "error");
       return;
     }
-    const filename = currentFile.includes("/") ? currentFile.split("/").pop()! : currentFile;
+    const filename = currentFile.includes("/")
+      ? currentFile.split("/").pop()!
+      : currentFile;
     const confirmed = window.confirm(
       `Delete all initial codes in "${filename}"? This cannot be undone.`
     );
@@ -455,7 +650,12 @@ const ScriptRunner: React.FC = () => {
         `🗑️ Deleted initial codes in ${result.casesCleared} cases from ${filename}`,
         "warning"
       );
-      setAnalysisStatus((prev) => ({ ...prev, processedCases: 0, uniqueCodesCount: 0, recentCompletions: [] }));
+      setAnalysisStatus((prev) => ({
+        ...prev,
+        processedCases: 0,
+        uniqueCodesCount: 0,
+        recentCompletions: [],
+      }));
       if (filename) await loadExistingCodes(filename);
     } catch (e: any) {
       addOutput(`❌ Failed to delete all codes: ${e.message}`, "error");
@@ -469,14 +669,25 @@ const ScriptRunner: React.FC = () => {
       const response = await fetch("/api/script/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataFile: filename, globalInstructions: effectiveInstructions, model }),
+        body: JSON.stringify({
+          dataFile: filename,
+          globalInstructions: effectiveInstructions,
+          model,
+        }),
       });
       const data = await response.json();
       if (response.ok) {
         setIsRunning(true);
         setStartTime(Date.now());
-        const methodUsed = hasAnyInstruction() ? "with custom instructions" : "using best practices";
-        addOutput(`🔄 Starting Phase 2 analysis${filename ? ` with file: ${filename}` : ""} ${methodUsed}...`, "info");
+        const methodUsed = hasAnyInstruction()
+          ? "with custom instructions"
+          : "using best practices";
+        addOutput(
+          `🔄 Starting Phase 2 analysis${
+            filename ? ` with file: ${filename}` : ""
+          } ${methodUsed}...`,
+          "info"
+        );
       } else {
         setError(data.error || "Failed to start script");
         addOutput(`❌ Error: ${data.error}`, "error");
@@ -489,13 +700,18 @@ const ScriptRunner: React.FC = () => {
 
   const addOutput = (text: string, type: string = "output") => {
     const timestamp = new Date().toLocaleTimeString();
-    setOutput((prev) => [...prev, { text, type, timestamp, id: Date.now() + Math.random() }]);
+    setOutput((prev) => [
+      ...prev,
+      { text, type, timestamp, id: Date.now() + Math.random() },
+    ]);
   };
 
   const getEstimatedCompletion = () => {
-    if (analysisStatus.processedCases === 0 || duration === 0) return "Calculating...";
+    if (analysisStatus.processedCases === 0 || duration === 0)
+      return "Calculating...";
     const avgTimePerCase = duration / analysisStatus.processedCases;
-    const remainingCases = analysisStatus.totalCases - analysisStatus.processedCases;
+    const remainingCases =
+      analysisStatus.totalCases - analysisStatus.processedCases;
     const estimatedMs = remainingCases * avgTimePerCase;
     if (estimatedMs < 60000) return `${Math.round(estimatedMs / 1000)}s`;
     if (estimatedMs < 3600000) return `${Math.round(estimatedMs / 60000)}m`;
@@ -508,7 +724,9 @@ const ScriptRunner: React.FC = () => {
     analysisStatus.recentCompletions.forEach((completion) => {
       try {
         const codes = JSON.parse(
-          typeof completion.codesText === "string" ? completion.codesText.replace(/'/g, '"') : JSON.stringify(completion.codesText)
+          typeof completion.codesText === "string"
+            ? completion.codesText.replace(/'/g, '"')
+            : JSON.stringify(completion.codesText)
         );
         if (Array.isArray(codes)) {
           codes.forEach((code) => {
@@ -522,7 +740,11 @@ const ScriptRunner: React.FC = () => {
     return Object.entries(codeTypes)
       .sort(([, a], [, b]) => (b as number) - (a as number))
       .slice(0, 5)
-      .map(([name, count]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), count, percentage: totalCodes > 0 ? (Number(count) / totalCodes) * 100 : 0 }));
+      .map(([name, count]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        count,
+        percentage: totalCodes > 0 ? (Number(count) / totalCodes) * 100 : 0,
+      }));
   };
 
   const getPhaseIcon = (phase: string) => {
@@ -572,10 +794,15 @@ const ScriptRunner: React.FC = () => {
       setSavingCodes((prev) => ({ ...prev, [caseId]: true }));
       const currentFile = analysisStatus.currentDataFile || selectedDataFile;
       if (!currentFile) {
-        addOutput("❌ Error: No data file available for saving changes", "error");
+        addOutput(
+          "❌ Error: No data file available for saving changes",
+          "error"
+        );
         return;
       }
-      const filename = currentFile.includes("/") ? currentFile.split("/").pop()! : currentFile;
+      const filename = currentFile.includes("/")
+        ? currentFile.split("/").pop()!
+        : currentFile;
       const response = await fetch(`/api/data/${filename}/case/${caseId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -586,7 +813,9 @@ const ScriptRunner: React.FC = () => {
         setAnalysisStatus((prev) => ({
           ...prev,
           recentCompletions: prev.recentCompletions.map((completion) =>
-            completion.caseId === caseId ? { ...completion, codesText: JSON.stringify(codes) } : completion
+            completion.caseId === caseId
+              ? { ...completion, codesText: JSON.stringify(codes) }
+              : completion
           ),
         }));
         setEditingCodes((prev) => {
@@ -594,12 +823,18 @@ const ScriptRunner: React.FC = () => {
           delete updated[caseId];
           return updated;
         });
-        addOutput(`✅ Saved codes for case ${caseId} to ${filename}`, "success");
+        addOutput(
+          `✅ Saved codes for case ${caseId} to ${filename}`,
+          "success"
+        );
       } else {
         throw new Error(result.error || "Failed to save codes");
       }
     } catch (e: any) {
-      addOutput(`❌ Failed to save codes for case ${caseId}: ${e.message}`, "error");
+      addOutput(
+        `❌ Failed to save codes for case ${caseId}: ${e.message}`,
+        "error"
+      );
     } finally {
       setSavingCodes((prev) => {
         const updated = { ...prev };
@@ -619,11 +854,16 @@ const ScriptRunner: React.FC = () => {
         timestamp: completion.timestamp.toISOString(),
       })),
     };
-    const blob = new Blob([JSON.stringify(codesData, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(codesData, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `generated_codes_${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.json`;
+    a.download = `generated_codes_${new Date()
+      .toISOString()
+      .slice(0, 19)
+      .replace(/:/g, "-")}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -642,10 +882,12 @@ const ScriptRunner: React.FC = () => {
     const [caseTextExpanded, setCaseTextExpanded] = useState<boolean>(false);
 
     const truncateLength = 200;
-    const shouldTruncate = completion.caseText && completion.caseText.length > truncateLength;
-    const displayText = shouldTruncate && !caseTextExpanded
-      ? (completion.caseText || "").substring(0, truncateLength) + "..."
-      : completion.caseText || "";
+    const shouldTruncate =
+      completion.caseText && completion.caseText.length > truncateLength;
+    const displayText =
+      shouldTruncate && !caseTextExpanded
+        ? (completion.caseText || "").substring(0, truncateLength) + "..."
+        : completion.caseText || "";
 
     useEffect(() => {
       try {
@@ -662,8 +904,12 @@ const ScriptRunner: React.FC = () => {
           codes = [String(completion.codesText)];
         }
         const codesArray = Array.isArray(codes) ? codes : [codes];
-        const cleanCodes = codesArray.map((code: any) => String(code).trim()).filter((code: string) => code.length > 0);
-        setEditedCodes(cleanCodes.length > 0 ? cleanCodes : ["No codes generated"]);
+        const cleanCodes = codesArray
+          .map((code: any) => String(code).trim())
+          .filter((code: string) => code.length > 0);
+        setEditedCodes(
+          cleanCodes.length > 0 ? cleanCodes : ["No codes generated"]
+        );
       } catch {
         setEditedCodes([completion.codesText || "Error parsing codes"] as any);
       }
@@ -692,13 +938,17 @@ const ScriptRunner: React.FC = () => {
 
     const handleDeleteCode = (index: number) => {
       const updatedCodes = editedCodes.filter((_, i) => i !== index);
-      const finalCodes = updatedCodes.length > 0 ? updatedCodes : ["No codes generated"];
+      const finalCodes =
+        updatedCodes.length > 0 ? updatedCodes : ["No codes generated"];
       setEditedCodes(finalCodes);
       onSave(completion.caseId, finalCodes);
     };
 
     const handleAddNewCode = () => {
-      const updatedCodes = [...editedCodes.filter((code) => code !== "No codes generated"), ""];
+      const updatedCodes = [
+        ...editedCodes.filter((code) => code !== "No codes generated"),
+        "",
+      ];
       setEditedCodes(updatedCodes);
       setEditingIndex(updatedCodes.length - 1);
       setEditValue("");
@@ -713,7 +963,9 @@ const ScriptRunner: React.FC = () => {
       onRegenerate(
         completion.caseId,
         completion.caseText || "",
-        typeof completion.codesText === "string" ? completion.codesText : JSON.stringify(completion.codesText)
+        typeof completion.codesText === "string"
+          ? completion.codesText
+          : JSON.stringify(completion.codesText)
       );
     };
 
@@ -722,20 +974,57 @@ const ScriptRunner: React.FC = () => {
         <div className="item-header">
           <div className="case-info">
             <span className="case-id">Case {completion.caseId}</span>
-            {completion.isExisting && (
-              <span className="existing-indicator" title="Existing codes from file">📁 Existing</span>
-            )}
+            {/* Removed Existing indicator per request */}
             {completion.isRegenerated && (
-              <span className="regenerated-indicator" title="Codes regenerated with custom instructions">🔄 Regenerated</span>
+              <span
+                className="regenerated-indicator"
+                title="Codes regenerated with custom instructions"
+              >
+                🔄 Regenerated
+              </span>
             )}
-            <span className="generation-time">{completion.timestamp.toLocaleTimeString()}</span>
+            <span className="generation-time">
+              {completion.timestamp.toLocaleTimeString()}
+            </span>
           </div>
           <div className="item-actions">
-            <button className="regenerate-btn" onClick={handleRegenerate} type="button" title="Regenerate codes with custom instructions" disabled={isSaving || isRegenerating}>
-              {isRegenerating ? "🔄 Regenerating..." : "🔄 Regenerate"}
+            <button
+              className="regenerate-btn"
+              onClick={handleRegenerate}
+              type="button"
+              title="Regenerate codes with custom instructions"
+              disabled={isSaving || isRegenerating}
+            >
+              {isRegenerating ? (
+                <>
+                  <IconLoader size={14} />
+                  <span style={{ marginLeft: 6 }}>Regenerating...</span>
+                </>
+              ) : (
+                <>
+                  <IconRefreshCw size={14} />
+                  <span style={{ marginLeft: 6 }}>Regenerate</span>
+                </>
+              )}
             </button>
-            <button className="add-code-btn" onClick={handleAddNewCode} type="button" title="Add new code" disabled={isSaving || isRegenerating}>
-              {isSaving ? "💾 Saving..." : "➕ Add Code"}
+            <button
+              className="add-code-btn"
+              onClick={handleAddNewCode}
+              type="button"
+              title="Add new code"
+              disabled={isSaving || isRegenerating}
+            >
+              {isSaving ? (
+                <>
+                  <IconLoader size={14} />
+                  <span style={{ marginLeft: 6 }}>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <IconPlus size={14} />
+                  <span style={{ marginLeft: 6 }}>Add Code</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -745,7 +1034,11 @@ const ScriptRunner: React.FC = () => {
             <div className="case-text-header">
               <h6>📄 Case Description</h6>
               {shouldTruncate && (
-                <button className="expand-text-btn" onClick={() => setCaseTextExpanded(!caseTextExpanded)} type="button">
+                <button
+                  className="expand-text-btn"
+                  onClick={() => setCaseTextExpanded(!caseTextExpanded)}
+                  type="button"
+                >
                   {caseTextExpanded ? "Show Less" : "Show More"}
                 </button>
               )}
@@ -774,21 +1067,52 @@ const ScriptRunner: React.FC = () => {
                         autoFocus
                       />
                       <div className="edit-buttons">
-                        <button className="save-inline-btn" onClick={handleSaveEdit} type="button" title="Save">✓</button>
-                        <button className="cancel-inline-btn" onClick={handleCancelEdit} type="button" title="Cancel">✕</button>
+                        <button
+                          className="save-inline-btn"
+                          onClick={handleSaveEdit}
+                          type="button"
+                          title="Save"
+                        >
+                          <IconCheck size={12} />
+                        </button>
+                        <button
+                          className="cancel-inline-btn"
+                          onClick={handleCancelEdit}
+                          type="button"
+                          title="Cancel"
+                        >
+                          <IconX size={12} />
+                        </button>
                       </div>
                     </div>
                   ) : (
                     <div className="code-tag-wrapper">
                       <span className="code-tag">{code}</span>
-                      {code !== "No codes generated" && code !== "Error parsing codes" && (
-                        <div className="code-actions">
-                          <button className="edit-code-btn" onClick={() => handleStartEdit(index)} type="button" title="Edit code" disabled={isSaving}>✏️</button>
-                          {editedCodes.length > 1 && (
-                            <button className="delete-code-btn" onClick={() => handleDeleteCode(index)} type="button" title="Delete code" disabled={isSaving}>🗑️</button>
-                          )}
-                        </div>
-                      )}
+                      {code !== "No codes generated" &&
+                        code !== "Error parsing codes" && (
+                          <div className="code-actions">
+                            <button
+                              className="edit-code-btn"
+                              onClick={() => handleStartEdit(index)}
+                              type="button"
+                              title="Edit code"
+                              disabled={isSaving}
+                            >
+                              <IconEdit2 size={12} />
+                            </button>
+                            {editedCodes.length > 1 && (
+                              <button
+                                className="delete-code-btn"
+                                onClick={() => handleDeleteCode(index)}
+                                type="button"
+                                title="Delete code"
+                                disabled={isSaving}
+                              >
+                                <IconTrash2 size={12} />
+                              </button>
+                            )}
+                          </div>
+                        )}
                     </div>
                   )}
                 </div>
@@ -805,17 +1129,19 @@ const ScriptRunner: React.FC = () => {
       const response = await fetch(`/api/data/${filename}/codes?limit=100`);
       const result = await response.json();
       if (response.ok) {
-        const existingCompletions: Completion[] = result.cases.map((case_: any) => ({
-          caseId: case_.caseId,
-          codesText: Array.isArray(case_.codes)
-            ? case_.codes
-            : typeof case_.codes === "string"
-            ? case_.codes
-            : [case_.codes],
-          timestamp: new Date(case_.timestamp),
-          caseText: case_.caseText || "",
-          isExisting: true,
-        }));
+        const existingCompletions: Completion[] = result.cases.map(
+          (case_: any) => ({
+            caseId: case_.caseId,
+            codesText: Array.isArray(case_.codes)
+              ? case_.codes
+              : typeof case_.codes === "string"
+              ? case_.codes
+              : [case_.codes],
+            timestamp: new Date(case_.timestamp),
+            caseText: case_.caseText || "",
+            isExisting: true,
+          })
+        );
         setAnalysisStatus((prev) => ({
           ...prev,
           totalCases: result.statistics.totalCases,
@@ -824,7 +1150,10 @@ const ScriptRunner: React.FC = () => {
           recentCompletions: existingCompletions,
           currentDataFile: filename,
         }));
-        addOutput(`📂 Loaded ${result.statistics.processedCases} existing codes from ${filename}`, "info");
+        addOutput(
+          `📂 Loaded ${result.statistics.processedCases} existing codes from ${filename}`,
+          "info"
+        );
       } else {
         throw new Error(result.error || "Failed to load existing codes");
       }
@@ -839,44 +1168,63 @@ const ScriptRunner: React.FC = () => {
     currentCodes: string
   ) => {
     setRegenerateModalData({ caseId, caseText, currentCodes });
-    setRegenerateInstructions("");
     setShowRegenerateModal(true);
   };
 
-  const handleRegenerateSubmit = async () => {
+  const handleRegenerateSubmit = async (instructions: string) => {
     if (!regenerateModalData) return;
     const { caseId, caseText } = regenerateModalData;
     try {
       setRegeneratingCodes((prev) => ({ ...prev, [caseId]: true }));
       setShowRegenerateModal(false);
       const currentFile = analysisStatus.currentDataFile || selectedDataFile;
-      if (!currentFile) throw new Error("No data file available for regeneration");
-      const filename = currentFile.includes("/") ? currentFile.split("/").pop()! : currentFile;
+      if (!currentFile)
+        throw new Error("No data file available for regeneration");
+      const filename = currentFile.includes("/")
+        ? currentFile.split("/").pop()!
+        : currentFile;
       addOutput(`🔄 Regenerating codes for case ${caseId}...`, "info");
-      const response = await fetch(`/api/data/${filename}/case/${caseId}/regenerate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instructions: regenerateInstructions.trim(), model }),
-      });
+      const response = await fetch(
+        `/api/data/${filename}/case/${caseId}/regenerate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instructions: instructions.trim(),
+            model,
+          }),
+        }
+      );
       const result = await response.json();
       if (response.ok) {
         setAnalysisStatus((prev) => ({
           ...prev,
           recentCompletions: prev.recentCompletions.map((completion) =>
             completion.caseId === caseId
-              ? { ...completion, codesText: JSON.stringify(result.codes), timestamp: new Date(), isRegenerated: true }
+              ? {
+                  ...completion,
+                  codesText: JSON.stringify(result.codes),
+                  timestamp: new Date(),
+                  isRegenerated: true,
+                }
               : completion
           ),
         }));
-        const methodUsed = regenerateInstructions.trim()
+        const methodUsed = instructions.trim()
           ? `with custom instructions using model: ${model}`
           : `using best practices with model: ${model}`;
-        addOutput(`✅ Successfully regenerated codes for case ${caseId} ${methodUsed}`, "success");
+        addOutput(
+          `✅ Successfully regenerated codes for case ${caseId} ${methodUsed}`,
+          "success"
+        );
       } else {
         throw new Error(result.error || "Failed to regenerate codes");
       }
     } catch (e: any) {
-      addOutput(`❌ Failed to regenerate codes for case ${caseId}: ${e.message}`, "error");
+      addOutput(
+        `❌ Failed to regenerate codes for case ${caseId}: ${e.message}`,
+        "error"
+      );
     } finally {
       setRegeneratingCodes((prev) => {
         const updated = { ...prev } as Record<string | number, boolean>;
@@ -884,20 +1232,23 @@ const ScriptRunner: React.FC = () => {
         return updated;
       });
       setRegenerateModalData(null);
-      setRegenerateInstructions("");
     }
   };
 
   const handleRegenerateCancel = () => {
     setShowRegenerateModal(false);
     setRegenerateModalData(null);
-    setRegenerateInstructions("");
   };
 
   const handleExampleClick = (exampleText: string) => {
     const cleanExample = exampleText.replace(/"/g, "");
     if (globalInstructions.trim()) {
-      setGlobalInstructions((prev) => prev + (prev.endsWith(".") || prev.endsWith(",") ? " " : ". ") + cleanExample);
+      setGlobalInstructions(
+        (prev) =>
+          prev +
+          (prev.endsWith(".") || prev.endsWith(",") ? " " : ". ") +
+          cleanExample
+      );
     } else {
       setGlobalInstructions(cleanExample);
     }
@@ -905,7 +1256,10 @@ const ScriptRunner: React.FC = () => {
 
   const handleBulkRegenerate = async () => {
     if (!hasAnyInstruction()) {
-      addOutput("❌ Please enter instructions before bulk regenerating codes", "error");
+      addOutput(
+        "❌ Please enter instructions before bulk regenerating codes",
+        "error"
+      );
       return;
     }
     const currentFile = analysisStatus.currentDataFile || selectedDataFile;
@@ -913,7 +1267,9 @@ const ScriptRunner: React.FC = () => {
       addOutput("❌ No data file selected for bulk regeneration", "error");
       return;
     }
-    const filename = currentFile.includes("/") ? currentFile.split("/").pop()! : currentFile;
+    const filename = currentFile.includes("/")
+      ? currentFile.split("/").pop()!
+      : currentFile;
     try {
       setBulkRegenerating(true);
       setBulkProgress({ current: 0, total: 0, status: "Starting..." });
@@ -928,7 +1284,10 @@ const ScriptRunner: React.FC = () => {
       });
       const result = await response.json();
       if (response.ok) {
-        addOutput(`✅ Bulk regeneration completed successfully. Updated ${result.updated_cases} cases.`, "success");
+        addOutput(
+          `✅ Bulk regeneration completed successfully. Updated ${result.updated_cases} cases.`,
+          "success"
+        );
         if (selectedDataFile) loadExistingCodes(selectedDataFile);
       } else {
         throw new Error(result.error || "Failed to start bulk regeneration");
@@ -941,13 +1300,54 @@ const ScriptRunner: React.FC = () => {
     }
   };
 
+  const handleGlobalKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Backspace" && e.key !== "Delete") return;
+    const textarea = e.currentTarget;
+    const hasSelection = textarea.selectionStart !== textarea.selectionEnd;
+    if (hasSelection) return;
+    const caretIndex = textarea.selectionStart;
+    const isAtStartOrOnlyWhitespaceBefore =
+      caretIndex === 0 ||
+      globalInstructions.slice(0, caretIndex).trim().length === 0;
+    if (
+      isAtStartOrOnlyWhitespaceBefore &&
+      selectedInstructionPills.length > 0
+    ) {
+      e.preventDefault();
+      setSelectedInstructionPills((prev) => prev.slice(0, -1));
+    }
+  };
+
+  // Adjust textarea padding to account for pills overlay height
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = pillsOverlayRef.current;
+      if (!el) {
+        setPillsOverlayHeight(0);
+        return;
+      }
+      setPillsOverlayHeight(el.offsetHeight + 12);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [selectedInstructionPills.length]);
+
   return (
     <div className="script-runner">
       <div className="toolbar">
-        <button onClick={startScript} disabled={isRunning} className="btn primary">
+        <button
+          onClick={startScript}
+          disabled={isRunning}
+          className="btn primary"
+        >
           {isRunning ? "Running..." : "Start analysis"}
         </button>
-        <button onClick={stopScript} disabled={!isRunning} className="btn danger">
+        <button
+          onClick={stopScript}
+          disabled={!isRunning}
+          className="btn danger"
+        >
           Stop
         </button>
         <button onClick={clearOutput} className="btn subtle">
@@ -987,11 +1387,15 @@ const ScriptRunner: React.FC = () => {
         <div className="progress-section">
           <div className="progress-info">
             <span>
-              Progress: {progress.current}/{progress.total} ({progress.percentage}%)
+              Progress: {progress.current}/{progress.total} (
+              {progress.percentage}%)
             </span>
           </div>
           <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${progress.percentage}%` }}></div>
+            <div
+              className="progress-fill"
+              style={{ width: `${progress.percentage}%` }}
+            ></div>
           </div>
         </div>
       )}
@@ -1008,7 +1412,9 @@ const ScriptRunner: React.FC = () => {
               <p>No files available for analysis.</p>
               <p>
                 <button
-                  onClick={() => window.dispatchEvent(new CustomEvent("switchToDataBrowser"))}
+                  onClick={() =>
+                    window.dispatchEvent(new CustomEvent("switchToDataBrowser"))
+                  }
                   className="btn subtle"
                 >
                   Go to Data Browser to upload files
@@ -1051,16 +1457,11 @@ const ScriptRunner: React.FC = () => {
               {selectedDataFile && (
                 <div className="row" style={{ gap: 8 }}>
                   <button
-                    onClick={() => startScriptWithFile(selectedDataFile)}
-                    disabled={isRunning}
-                    className="btn primary"
-                  >
-                    {isRunning ? "Running..." : "Start with this file"}
-                  </button>
-                  <button
                     onClick={() =>
                       window.dispatchEvent(
-                        new CustomEvent("switchToDataBrowser", { detail: { filename: selectedDataFile } })
+                        new CustomEvent("switchToDataBrowser", {
+                          detail: { filename: selectedDataFile },
+                        })
                       )
                     }
                     className="btn subtle"
@@ -1110,7 +1511,9 @@ const ScriptRunner: React.FC = () => {
                   <button
                     key={pill}
                     type="button"
-                    className={`badge ${selectedInstructionPills.includes(pill) ? "success" : ""}`}
+                    className={`badge ${
+                      selectedInstructionPills.includes(pill) ? "success" : ""
+                    }`}
                     onClick={() => toggleInstructionPill(pill)}
                     title={pill}
                     aria-pressed={selectedInstructionPills.includes(pill)}
@@ -1124,16 +1527,22 @@ const ScriptRunner: React.FC = () => {
 
             <div className="instructions-input-wrapper">
               {selectedInstructionPills.length > 0 && (
-                <div className="instructions-pills-overlay" aria-hidden>
+                <div
+                  className="instructions-pills-overlay"
+                  aria-hidden
+                  ref={pillsOverlayRef}
+                >
                   {selectedInstructionPills.map((pill) => (
-                    <span key={pill} className="instructions-pill">
+                    <span key={pill} className="badge instructions-pill">
                       {pill}
                       <button
                         type="button"
                         className="remove"
                         title={`Remove ${pill}`}
                         onClick={() =>
-                          setSelectedInstructionPills((prev) => prev.filter((p) => p !== pill))
+                          setSelectedInstructionPills((prev) =>
+                            prev.filter((p) => p !== pill)
+                          )
                         }
                       >
                         ×
@@ -1147,10 +1556,23 @@ const ScriptRunner: React.FC = () => {
                 ref={globalTextRef}
                 value={globalInstructions}
                 onChange={(e) => setGlobalInstructions(e.target.value)}
-                placeholder="Enter your instructions for code generation across all cases, or select pills above. Left blank uses comprehensive best practices."
+                onKeyDown={handleGlobalKeyDown}
+                placeholder={
+                  selectedInstructionPills.length === 0 &&
+                  (globalInstructions || "").trim().length === 0
+                    ? "Enter your instructions for code generation across all cases, or select pills above. Left blank uses comprehensive best practices."
+                    : ""
+                }
                 className="global-instructions-textarea"
                 rows={3}
-                style={{ paddingTop: selectedInstructionPills.length ? 44 : undefined }}
+                style={{
+                  paddingTop:
+                    selectedInstructionPills.length && pillsOverlayHeight
+                      ? pillsOverlayHeight
+                      : selectedInstructionPills.length
+                      ? 44
+                      : undefined,
+                }}
               />
             </div>
 
@@ -1158,7 +1580,9 @@ const ScriptRunner: React.FC = () => {
               {hasAnyInstruction() ? (
                 <span className="badge success">Using custom instructions</span>
               ) : (
-                <span className="badge info">Using comprehensive best practices</span>
+                <span className="badge info">
+                  Using comprehensive best practices
+                </span>
               )}
             </div>
           </div>
@@ -1171,39 +1595,11 @@ const ScriptRunner: React.FC = () => {
         </div>
         <div className="card-body">
           <div className="progress-overview">
-            <div className="progress-ring-container">
-              <div className="progress-ring">
-                <svg width="120" height="120" viewBox="0 0 120 120">
-                  <circle cx="60" cy="60" r="50" fill="transparent" strokeWidth="8" style={{ stroke: "var(--border)" }} />
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="50"
-                    fill="transparent"
-                    strokeWidth="8"
-                    style={{ stroke: "var(--accent-500)" }}
-                    strokeDasharray={`${2 * Math.PI * 50}`}
-                    strokeDashoffset={`${2 * Math.PI * 50 * (1 - analysisStatus.processedCases / Math.max(analysisStatus.totalCases, 1))}`}
-                    strokeLinecap="round"
-                    transform="rotate(-90 60 60)"
-                    className="progress-circle"
-                  />
-                </svg>
-                <div className="progress-text">
-                  <div className="progress-percentage">
-                    {analysisStatus.totalCases > 0
-                      ? Math.round((analysisStatus.processedCases / analysisStatus.totalCases) * 100)
-                      : 0}
-                    %
-                  </div>
-                  <div className="progress-label">Complete</div>
-                </div>
-              </div>
-            </div>
-
             <div className="progress-stats-grid">
               <div className="stat-item">
-                <div className="stat-number">{analysisStatus.processedCases}</div>
+                <div className="stat-number">
+                  {analysisStatus.processedCases}
+                </div>
                 <div className="stat-label">Processed</div>
               </div>
               <div className="stat-item">
@@ -1211,7 +1607,9 @@ const ScriptRunner: React.FC = () => {
                 <div className="stat-label">Total Cases</div>
               </div>
               <div className="stat-item">
-                <div className="stat-number">{analysisStatus.uniqueCodesCount}</div>
+                <div className="stat-number">
+                  {analysisStatus.uniqueCodesCount}
+                </div>
                 <div className="stat-label">Unique Codes</div>
               </div>
               <div className="stat-item">
@@ -1221,33 +1619,48 @@ const ScriptRunner: React.FC = () => {
             </div>
           </div>
 
-          {analysisStatus.phase === "Processing Cases" && analysisStatus.currentCase && (
-            <div className="current-processing">
-              <h4>Currently processing</h4>
-              <div className="current-case">
-                <span className="case-label">Case ID:</span>
-                <span className="case-id">{analysisStatus.currentCase}</span>
-                <span className="case-progress">({analysisStatus.currentBatch} of {analysisStatus.totalCases})</span>
+          {analysisStatus.phase === "Processing Cases" &&
+            analysisStatus.currentCase && (
+              <div className="current-processing">
+                <h4>Currently processing</h4>
+                <div className="current-case">
+                  <span className="case-label">Case ID:</span>
+                  <span className="case-id">{analysisStatus.currentCase}</span>
+                  <span className="case-progress">
+                    ({analysisStatus.currentBatch} of{" "}
+                    {analysisStatus.totalCases})
+                  </span>
+                </div>
+                <div className="processing-indicator">
+                  <div className="pulse-dot"></div>
+                  <span>Generating initial codes…</span>
+                </div>
               </div>
-              <div className="processing-indicator">
-                <div className="pulse-dot"></div>
-                <span>Generating initial codes…</span>
-              </div>
-            </div>
-          )}
+            )}
 
           {analysisStatus.recentCompletions.length > 0 && (
             <div className="live-codes-section">
               <div className="section-header">
                 <h4>
-                  Generated codes {analysisStatus.recentCompletions.length > 0 ? `(${analysisStatus.recentCompletions.length})` : ""}
+                  Generated codes{" "}
+                  {analysisStatus.recentCompletions.length > 0
+                    ? `(${analysisStatus.recentCompletions.length})`
+                    : ""}
                 </h4>
                 <div className="codes-actions">
-                  <button className="btn subtle" onClick={downloadGeneratedCodes}>Export codes</button>
+                  <button
+                    className="btn subtle"
+                    onClick={downloadGeneratedCodes}
+                  >
+                    Export codes
+                  </button>
                   <button
                     className="btn danger"
                     onClick={handleDeleteAllCodes}
-                    disabled={isRunning || (!selectedDataFile && !analysisStatus.currentDataFile)}
+                    disabled={
+                      isRunning ||
+                      (!selectedDataFile && !analysisStatus.currentDataFile)
+                    }
                     title="Delete all initial codes in this file"
                   >
                     Delete all codes
@@ -1256,97 +1669,46 @@ const ScriptRunner: React.FC = () => {
               </div>
 
               <div className="codes-list">
-                {analysisStatus.recentCompletions.slice(0, 10).map((completion) => (
-                  <CodeGenerationItem
-                    key={completion.caseId}
-                    completion={completion}
-                    onEdit={handleCodeEdit}
-                    onSave={handleCodeSave}
-                    onRegenerate={handleRegenerateRequest}
-                    isSaving={!!savingCodes[completion.caseId]}
-                    isRegenerating={!!regeneratingCodes[completion.caseId]}
-                  />
-                ))}
+                {analysisStatus.recentCompletions
+                  .slice(0, 10)
+                  .map((completion) => (
+                    <CodeGenerationItem
+                      key={completion.caseId}
+                      completion={completion}
+                      onEdit={handleCodeEdit}
+                      onSave={handleCodeSave}
+                      onRegenerate={handleRegenerateRequest}
+                      isSaving={!!savingCodes[completion.caseId]}
+                      isRegenerating={!!regeneratingCodes[completion.caseId]}
+                    />
+                  ))}
               </div>
 
               {analysisStatus.recentCompletions.length > 10 && (
                 <div className="more-codes-indicator">
-                  <span>+ {analysisStatus.recentCompletions.length - 10} more completed cases</span>
-                  <button className="view-all-btn" onClick={() => setShowAllCodes(true)}>View All Generated Codes</button>
+                  <span>
+                    + {analysisStatus.recentCompletions.length - 10} more
+                    completed cases
+                  </span>
+                  <button
+                    className="view-all-btn"
+                    onClick={() => setShowAllCodes(true)}
+                  >
+                    View All Generated Codes
+                  </button>
                 </div>
               )}
             </div>
           )}
 
           {showRegenerateModal && regenerateModalData && (
-            <div className="modal-overlay">
-              <div className="modal-content regenerate-modal">
-                <div className="modal-header">
-                  <h3>🔄 Regenerate Codes for Case {regenerateModalData.caseId}</h3>
-                </div>
-                <div className="modal-body">
-                  <div className="case-preview">
-                    <h4>📄 Case Text:</h4>
-                    <p className="case-text-preview">
-                      {regenerateModalData.caseText?.substring(0, 300)}
-                      {regenerateModalData.caseText?.length > 300 ? "..." : ""}
-                    </p>
-                  </div>
-
-                  <div className="current-codes">
-                    <h4>🏷️ Current Codes:</h4>
-                    <div className="current-codes-display">
-                      {(() => {
-                        try {
-                          const codes = JSON.parse(regenerateModalData.currentCodes);
-                          return Array.isArray(codes) ? codes.join(", ") : codes;
-                        } catch {
-                          return regenerateModalData.currentCodes;
-                        }
-                      })()}
-                    </div>
-                  </div>
-
-                  <div className="instructions-input">
-                    <h4>📝 Regeneration Instructions:</h4>
-                    <p className="instructions-help">
-                      Provide specific instructions for how you want the codes to be generated. The AI will prioritize your guidance while ensuring accuracy. Leave blank for comprehensive automatic coding.
-                    </p>
-
-                    <div className="instruction-examples">
-                      <p><strong>Examples of useful instructions:</strong></p>
-                      <ul className="example-list">
-                        <li>"Focus more on victim characteristics and vulnerability factors"</li>
-                        <li>"Use more specific terminology for the type of theft/crime"</li>
-                        <li>"Emphasize environmental and contextual factors"</li>
-                        <li>"Create codes that highlight offender behavior patterns"</li>
-                        <li>"Generate fewer, more general codes" or "Create more detailed, specific codes"</li>
-                        <li>"Focus on temporal aspects and timing of the crime"</li>
-                      </ul>
-                    </div>
-
-                    <textarea
-                      value={regenerateInstructions}
-                      onChange={(e) => setRegenerateInstructions(e.target.value)}
-                      placeholder="Enter your specific instructions here, or leave blank for comprehensive automatic coding based on best practices..."
-                      className="instructions-textarea"
-                      rows={4}
-                      autoFocus
-                    />
-
-                    <div className="instruction-tip">
-                      💡 <strong>Tip:</strong> The more specific your instructions, the better the AI can tailor the codes to your research needs.
-                    </div>
-                  </div>
-                </div>
-                <div className="modal-actions">
-                  <button onClick={handleRegenerateCancel} className="cancel-btn">Cancel</button>
-                  <button onClick={handleRegenerateSubmit} className="regenerate-confirm-btn" disabled={false}>
-                    🔄 {regenerateInstructions.trim() ? "Regenerate with Instructions" : "Regenerate with Best Practices"}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <RegenerateModal
+              isOpen={showRegenerateModal}
+              onClose={handleRegenerateCancel}
+              onSubmit={handleRegenerateSubmit}
+              caseText={regenerateModalData.caseText}
+              currentCodes={regenerateModalData.currentCodes}
+            />
           )}
         </div>
       </section>
@@ -1364,11 +1726,15 @@ const ScriptRunner: React.FC = () => {
                 </div>
                 <div className="stat">
                   <span className="stat-label">Processed:</span>
-                  <span className="stat-value">{results.progress.processed}</span>
+                  <span className="stat-value">
+                    {results.progress.processed}
+                  </span>
                 </div>
                 <div className="stat">
                   <span className="stat-label">Completion:</span>
-                  <span className="stat-value">{results.progress.percentage}%</span>
+                  <span className="stat-value">
+                    {results.progress.percentage}%
+                  </span>
                 </div>
               </div>
             </div>
@@ -1392,40 +1758,6 @@ const ScriptRunner: React.FC = () => {
       )}
     </div>
   );
-};
-
-export default ScriptRunner;
-
-import React, { useState, useEffect, useRef } from "react";
-
-type LogEntry = { id: number; text: string; timestamp: string; type: string };
-type Completion = {
-  caseId: string | number;
-  codesText: any;
-  timestamp: Date;
-  caseText?: string;
-  isExisting?: boolean;
-  isRegenerated?: boolean;
-};
-type AnalysisStatus = {
-  phase: string;
-  currentCase: string | number | null;
-  totalCases: number;
-  processedCases: number;
-  currentBatch: number;
-  recentCompletions: Completion[];
-  uniqueCodesCount: number;
-  estimatedTimeRemaining: string | null;
-  apiCalls: number;
-  errors: Array<{ message: string; timestamp: Date }>;
-  currentDataFile: string | null;
-};
-
-const ScriptRunner: React.FC = () => {
-  // Inline-import JS implementation to preserve behavior while migrating types
-  const JsImpl = (require("./ScriptRunner.js").default ||
-    ((): any => null)) as React.ComponentType;
-  return <JsImpl />;
 };
 
 export default ScriptRunner;

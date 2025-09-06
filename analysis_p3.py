@@ -5,7 +5,12 @@ from pathlib import Path
 import datetime
 import sys
 import argparse
-from gemini_api import get_analysis, response_to_json, COMPLETION_LEN, MODEL
+from gemini_api import get_analysis as gemini_get_analysis, response_to_json, COMPLETION_LEN, MODEL as GEMINI_MODEL
+import os
+try:
+    from openai import OpenAI  # OpenAI Responses API
+except Exception:
+    OpenAI = None
 
 
 # Set up logging
@@ -113,8 +118,15 @@ def main():
     else:
         DATA_FILE = DATA_DIR / 'kradeze_pripady_test_100_2_balanced_dedupl_claude_multiple_initial_codes.json'
 
+    # Provider/model selection from environment (set by server like P2)
+    PROVIDER = os.getenv('MODEL_PROVIDER', 'gemini').lower()
+    SELECTED_MODEL = (
+        os.getenv('OPENAI_MODEL') if PROVIDER == 'openai' else os.getenv('GEMINI_MODEL', GEMINI_MODEL)
+    )
+
     logger.info("=== Starting Phase 3 Analysis (Candidate Themes) ===")
-    logger.info(f"Using model: {MODEL}")
+    logger.info(f"Using provider: {PROVIDER}")
+    logger.info(f"Using model: {SELECTED_MODEL}")
     logger.info(f"Token limit: {PROMPT_LIMIT:,}")
     logger.info(f"Data file: {DATA_FILE}")
     logger.info("💾 Saving after each case processed")
@@ -200,12 +212,36 @@ def main():
         user_prompt_w_data = user_prompt.replace('{{DATA}}', case_data_prompt)
         
         try:
-            logger.info(f"Sending case {id_slt} to Gemini API...")
+            logger.info(f"Sending case {id_slt} to AI API...")
             
             # Retry logic for API calls
             max_retries = 3
             for attempt in range(max_retries):
-                response = get_analysis(system_prompt, user_prompt_w_data)
+                def get_provider_analysis(sys_prompt, usr_prompt):
+                    if PROVIDER == 'gemini':
+                        return gemini_get_analysis(sys_prompt, usr_prompt)
+                    if OpenAI is None:
+                        raise RuntimeError("OpenAI client not available")
+                    # Load API key
+                    with open('config.json') as cf:
+                        cfg = json.load(cf)
+                        openai_api_key = cfg.get('api_key') or cfg.get('openai_api_key')
+                    client = OpenAI(api_key=openai_api_key)
+                    model_name = SELECTED_MODEL or 'gpt-5'
+                    input_list = [
+                        {"role": "system", "content": sys_prompt},
+                        {"role": "user", "content": usr_prompt},
+                    ]
+                    response = client.responses.create(model=model_name, input=input_list)
+                    content_text = response.output_text
+                    return {
+                        'system_prompt': sys_prompt,
+                        'user_prompt': usr_prompt,
+                        'params': {'model': model_name},
+                        'choices': [{'message': {'content': content_text}}],
+                    }
+
+                response = get_provider_analysis(system_prompt, user_prompt_w_data)
                 json_res = response_to_json(response)
                 
                 if id_slt in json_res:

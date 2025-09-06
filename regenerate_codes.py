@@ -8,8 +8,13 @@ import argparse
 import json
 import sys
 import logging
+import os
 from pathlib import Path
 from gemini_api import get_analysis, response_to_json
+try:
+    from openai import OpenAI  # OpenAI Responses API
+except Exception:
+    OpenAI = None
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -102,8 +107,30 @@ CURRENT CODES: {existing_codes_text or "None"}"""
     
     return final_prompt
 
+def _openai_get_analysis(system_prompt: str, user_prompt: str, model_name: str):
+    """Call OpenAI Responses API and return a compatibility dict like gemini_api.get_analysis"""
+    if OpenAI is None:
+        raise RuntimeError("OpenAI client not available")
+    with open('config.json') as f:
+        cfg = json.load(f)
+        openai_api_key = cfg.get('api_key') or cfg.get('openai_api_key')
+    client = OpenAI(api_key=openai_api_key)
+    input_list = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    response = client.responses.create(model=model_name, input=input_list)
+    content_text = response.output_text
+    return {
+        'system_prompt': system_prompt,
+        'user_prompt': user_prompt,
+        'params': {'model': model_name},
+        'choices': [{'message': {'content': content_text}}],
+    }
+
+
 def regenerate_codes(case_id, case_text, existing_codes, user_instructions, all_existing_codes=None):
-    """Regenerate codes using Gemini API with user instructions"""
+    """Regenerate codes using selected provider/model with user instructions"""
     try:
         logger.info(f"Regenerating codes for case {case_id}")
         logger.info(f"User instructions: {user_instructions}")
@@ -114,8 +141,19 @@ def regenerate_codes(case_id, case_text, existing_codes, user_instructions, all_
         # Create regeneration prompt (using the same structure as main analysis)
         user_prompt = create_regeneration_prompt(case_text, existing_codes, user_instructions, all_existing_codes)
         
-        # Call Gemini API
-        response = get_analysis(system_prompt, user_prompt)
+        # Determine provider/model from environment (set by server)
+        provider = os.getenv('MODEL_PROVIDER', 'gemini').lower()
+        selected_model = (
+            os.getenv('OPENAI_MODEL') if provider == 'openai' else os.getenv('GEMINI_MODEL', MODEL)
+        )
+
+        # Call the appropriate provider
+        if provider == 'openai':
+            logger.info(f"Using OpenAI model: {selected_model}")
+            response = _openai_get_analysis(system_prompt, user_prompt, selected_model)
+        else:
+            logger.info(f"Using Gemini model: {selected_model}")
+            response = get_analysis(system_prompt, user_prompt)
         json_result = response_to_json(response)
         
         # Extract codes from response (try multiple possible keys)

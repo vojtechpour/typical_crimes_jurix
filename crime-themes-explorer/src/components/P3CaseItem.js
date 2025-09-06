@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { FiEdit2, FiTrash2 } from "react-icons/fi";
 import "./P3CaseItem.css";
 
 const P3CaseItem = ({
@@ -311,14 +312,14 @@ const P3CaseItem = ({
                         type="button"
                         title="Edit initial code"
                       >
-                        ✏️
+                        <FiEdit2 size={12} />
                       </button>
                       <button
                         className="delete-code-btn"
                         type="button"
                         title="Delete initial code"
                       >
-                        🗑️
+                        <FiTrash2 size={12} />
                       </button>
                     </div>
                   </div>
