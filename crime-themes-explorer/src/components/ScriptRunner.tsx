@@ -1407,7 +1407,7 @@ const ScriptRunner: React.FC = () => {
           <h3>Select data file for analysis</h3>
         </div>
         <div className="card-body">
-          {availableFiles.length === 0 ? (
+          {availableFiles.length === 0 && !selectedDataFile ? (
             <div className="no-files-available">
               <p>No files available for analysis.</p>
               <p>
