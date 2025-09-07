@@ -2801,7 +2801,7 @@
 .regenerate-confirm-btn {
   padding: 10px 20px;
   border: none;
-  background: #ff9800;
+  background: var(--brand-600);
   color: white;
   border-radius: 6px;
   cursor: pointer;
@@ -2811,7 +2811,7 @@
 }
 
 .regenerate-confirm-btn:hover:not(:disabled) {
-  background: #f57c00;
+  filter: saturate(1.05) brightness(1.03);
 }
 
 .regenerate-confirm-btn:disabled {
