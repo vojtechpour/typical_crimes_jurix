@@ -593,8 +593,8 @@ const ScriptRunner: React.FC = () => {
       const response = await fetch("/api/data-files");
       const files = await response.json();
       setAvailableFiles(files);
-    } catch {}
-    finally {
+    } catch {
+    } finally {
       setFilesLoading(false);
     }
   };
@@ -1412,11 +1412,7 @@ const ScriptRunner: React.FC = () => {
           <h3>Select data file for analysis</h3>
         </div>
         <div className="card-body">
-          {filesLoading ? (
-            <div className="no-files-available">
-              <p>Loading available files…</p>
-            </div>
-          ) : availableFiles.length === 0 ? (
+          {filesLoading ? null : availableFiles.length === 0 ? (
             <div className="no-files-available">
               <p>No files available for analysis.</p>
               <p>
