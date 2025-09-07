@@ -8,12 +8,14 @@ interface Props {
   availableFiles: FileInfo[];
   selectedDataFile: string;
   setSelectedDataFile: (v: string) => void;
+  isLoadingFiles?: boolean;
 }
 
 const P3FileSelector: React.FC<Props> = ({
   availableFiles,
   selectedDataFile,
   setSelectedDataFile,
+  isLoadingFiles = false,
 }) => {
   return (
     <section className="card soft">
@@ -21,7 +23,11 @@ const P3FileSelector: React.FC<Props> = ({
         <h3>Select data file with initial codes</h3>
       </div>
       <div className="card-body">
-        {availableFiles.length === 0 ? (
+        {isLoadingFiles ? (
+          <div className="no-files">
+            <p>Loading available files…</p>
+          </div>
+        ) : availableFiles.length === 0 ? (
           <div className="no-files">
             <p>No files available for P3 analysis.</p>
             <p>Please ensure you have files with initial codes from Phase 2.</p>

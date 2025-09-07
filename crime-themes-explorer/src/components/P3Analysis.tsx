@@ -73,9 +73,12 @@ const P3Analysis: React.FC = () => {
   });
 
   const [existingThemes, setExistingThemes] = useState<any[]>([]);
-  const [loadingExistingThemes, setLoadingExistingThemes] = useState<boolean>(false);
+  const [loadingExistingThemes, setLoadingExistingThemes] =
+    useState<boolean>(false);
   const [showAllThemes, setShowAllThemes] = useState<boolean>(false);
-  const [expandedCases, setExpandedCases] = useState<Set<string | number>>(new Set());
+  const [expandedCases, setExpandedCases] = useState<Set<string | number>>(
+    new Set()
+  );
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -165,20 +168,35 @@ const P3Analysis: React.FC = () => {
             ...prev,
             phase: phaseData.phase,
             totalCases: phaseData.details.total_cases || prev.totalCases,
-            processedCases: phaseData.details.processed_cases || prev.processedCases,
-            uniqueThemesCount: phaseData.details.unique_themes || prev.uniqueThemesCount,
-            currentDataFile: phaseData.details.data_file || prev.currentDataFile,
+            processedCases:
+              phaseData.details.processed_cases || prev.processedCases,
+            uniqueThemesCount:
+              phaseData.details.unique_themes || prev.uniqueThemesCount,
+            currentDataFile:
+              phaseData.details.data_file || prev.currentDataFile,
           }));
           break;
         }
         case "p3_completed_starting_p3b": {
-          setAnalysisStatus((prev) => ({ ...prev, phase: "P3 Complete - Starting P3b" }));
+          setAnalysisStatus((prev) => ({
+            ...prev,
+            phase: "P3 Complete - Starting P3b",
+          }));
           setP3bStatus((prev) => ({ ...prev, phase: "Starting P3b" }));
-          addOutput("✅ P3 analysis completed! Automatically starting P3b theme finalization...", "success");
+          addOutput(
+            "✅ P3 analysis completed! Automatically starting P3b theme finalization...",
+            "success"
+          );
           break;
         }
         case "p3b_script_started": {
-          setP3bStatus((prev) => ({ ...prev, isRunning: true, phase: "Finalizing Themes", output: [], error: null }));
+          setP3bStatus((prev) => ({
+            ...prev,
+            isRunning: true,
+            phase: "Finalizing Themes",
+            output: [],
+            error: null,
+          }));
           addOutput("🎯 P3b: Starting theme finalization process...", "info");
           break;
         }
@@ -187,17 +205,33 @@ const P3Analysis: React.FC = () => {
             ...prev,
             output: [
               ...prev.output,
-              { id: Date.now() + Math.random(), text: message.text, timestamp: message.timestamp, type: "info" },
+              {
+                id: Date.now() + Math.random(),
+                text: message.text,
+                timestamp: message.timestamp,
+                type: "info",
+              },
             ].slice(-100),
           }));
           addOutput(`P3b: ${message.text}`, "info");
           break;
         }
         case "p3b_script_finished": {
-          setP3bStatus((prev) => ({ ...prev, isRunning: false, phase: "P3b Complete", finalThemes: message.output }));
+          setP3bStatus((prev) => ({
+            ...prev,
+            isRunning: false,
+            phase: "P3b Complete",
+            finalThemes: message.output,
+          }));
           setIsRunning(false);
-          setAnalysisStatus((prev) => ({ ...prev, phase: "Complete (P3 + P3b)" }));
-          addOutput("✅ P3b theme finalization completed successfully!", "success");
+          setAnalysisStatus((prev) => ({
+            ...prev,
+            phase: "Complete (P3 + P3b)",
+          }));
+          addOutput(
+            "✅ P3b theme finalization completed successfully!",
+            "success"
+          );
           break;
         }
         case "p3b_script_failed": {
@@ -208,7 +242,10 @@ const P3Analysis: React.FC = () => {
             error: `P3b script failed with code ${message.code}`,
           }));
           setIsRunning(false);
-          addOutput(`❌ P3b theme finalization failed with code ${message.code}`, "error");
+          addOutput(
+            `❌ P3b theme finalization failed with code ${message.code}`,
+            "error"
+          );
           break;
         }
         case "p3b_script_error": {
@@ -218,21 +255,30 @@ const P3Analysis: React.FC = () => {
         }
         case "p3_scripts_stopped": {
           setIsRunning(false);
-          setP3bStatus((prev) => ({ ...prev, isRunning: false, phase: "Stopped" }));
+          setP3bStatus((prev) => ({
+            ...prev,
+            isRunning: false,
+            phase: "Stopped",
+          }));
           setAnalysisStatus((prev) => ({ ...prev, phase: "Stopped" }));
-          addOutput(`⏹️ Scripts stopped: ${message.stoppedProcesses.join(" and ")}`, "warning");
+          addOutput(
+            `⏹️ Scripts stopped: ${message.stoppedProcesses.join(" and ")}`,
+            "warning"
+          );
           break;
         }
         case "output": {
-          setOutput((prev) => [
-            ...prev,
-            {
-              id: Date.now() + Math.random(),
-              text: message.text,
-              timestamp: message.timestamp,
-              type: message.level || "info",
-            },
-          ].slice(-1000));
+          setOutput((prev) =>
+            [
+              ...prev,
+              {
+                id: Date.now() + Math.random(),
+                text: message.text,
+                timestamp: message.timestamp,
+                type: message.level || "info",
+              },
+            ].slice(-1000)
+          );
           break;
         }
         case "p3_script_started": {
@@ -245,7 +291,13 @@ const P3Analysis: React.FC = () => {
             errors: [],
             currentDataFile: selectedDataFile || prev.currentDataFile,
           }));
-          setP3bStatus({ isRunning: false, phase: "Idle", output: [], finalThemes: null, error: null });
+          setP3bStatus({
+            isRunning: false,
+            phase: "Idle",
+            output: [],
+            finalThemes: null,
+            error: null,
+          });
           break;
         }
         case "p3_script_stopped": {
@@ -258,16 +310,26 @@ const P3Analysis: React.FC = () => {
         case "p3_script_error": {
           setAnalysisStatus((prev) => ({
             ...prev,
-            errors: [...prev.errors, { message: message.data, timestamp: new Date(message.timestamp) }].slice(-100),
+            errors: [
+              ...prev.errors,
+              { message: message.data, timestamp: new Date(message.timestamp) },
+            ].slice(-100),
           }));
           break;
         }
         default: {
           if (message.data && (message.data as string).includes) {
-            setOutput((prev) => [
-              ...prev,
-              { id: Date.now() + Math.random(), text: message.data, timestamp: new Date().toLocaleTimeString(), type: "info" },
-            ].slice(-1000));
+            setOutput((prev) =>
+              [
+                ...prev,
+                {
+                  id: Date.now() + Math.random(),
+                  text: message.data,
+                  timestamp: new Date().toLocaleTimeString(),
+                  type: "info",
+                },
+              ].slice(-1000)
+            );
           }
         }
       }
@@ -297,7 +359,10 @@ const P3Analysis: React.FC = () => {
       if (response.ok) {
         setIsRunning(true);
         setStartTime(Date.now());
-        addOutput(`🎯 Starting Phase 3 candidate theme generation (model: ${model})...`, "info");
+        addOutput(
+          `🎯 Starting Phase 3 candidate theme generation (model: ${model})...`,
+          "info"
+        );
       } else {
         setError(data.error || "Failed to start P3 script");
         addOutput(`❌ Error: ${data.error}`, "error");
@@ -310,7 +375,10 @@ const P3Analysis: React.FC = () => {
 
   const stopScript = async () => {
     try {
-      const response = await fetch("/api/p3/stop", { method: "POST", headers: { "Content-Type": "application/json" } });
+      const response = await fetch("/api/p3/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
       const data = await response.json();
       if (response.ok) {
         setIsRunning(false);
@@ -335,8 +403,11 @@ const P3Analysis: React.FC = () => {
     try {
       const response = await fetch("/api/data-files");
       const files = await response.json();
-      const filesWithCodes = files.filter((file: any) =>
-        file.name.includes("codes") || file.name.includes("initial") || file.name.includes("p2")
+      const filesWithCodes = files.filter(
+        (file: any) =>
+          file.name.includes("codes") ||
+          file.name.includes("initial") ||
+          file.name.includes("p2")
       );
       setAvailableFiles(filesWithCodes.length > 0 ? filesWithCodes : files);
     } catch {}
@@ -346,7 +417,9 @@ const P3Analysis: React.FC = () => {
     if (!selectedDataFile) return;
     setLoadingExistingThemes(true);
     try {
-      const response = await fetch(`/api/data/${selectedDataFile}/themes?limit=10000`);
+      const response = await fetch(
+        `/api/data/${selectedDataFile}/themes?limit=10000`
+      );
       const data = await response.json();
       if (response.ok) {
         setExistingThemes(data.cases || []);
@@ -385,7 +458,10 @@ const P3Analysis: React.FC = () => {
 
   const addOutput = (text: string, type: string = "output") => {
     const timestamp = new Date().toLocaleTimeString();
-    setOutput((prev) => [...prev, { text, type, timestamp, id: Date.now() + Math.random() }]);
+    setOutput((prev) => [
+      ...prev,
+      { text, type, timestamp, id: Date.now() + Math.random() },
+    ]);
   };
 
   const toggleCaseExpansion = (caseId: string | number) => {
@@ -397,16 +473,25 @@ const P3Analysis: React.FC = () => {
     });
   };
 
-  const handleThemeUpdate = async (caseId: string | number, themeType: string, newValue: string) => {
+  const handleThemeUpdate = async (
+    caseId: string | number,
+    themeType: string,
+    newValue: string
+  ) => {
     try {
       setExistingThemes((prevThemes: any[]) =>
-        prevThemes.map((theme: any) => (theme.caseId === caseId ? { ...theme, [themeType]: newValue } : theme))
+        prevThemes.map((theme: any) =>
+          theme.caseId === caseId ? { ...theme, [themeType]: newValue } : theme
+        )
       );
-      const response = await fetch(`/api/data/${selectedDataFile}/case/${caseId}/update-theme`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ themeType, theme: newValue }),
-      });
+      const response = await fetch(
+        `/api/data/${selectedDataFile}/case/${caseId}/update-theme`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ themeType, theme: newValue }),
+        }
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to update theme");
@@ -426,10 +511,18 @@ const P3Analysis: React.FC = () => {
       </div>
 
       <div className="toolbar">
-        <button onClick={startScript} disabled={isRunning || !selectedDataFile} className="btn primary">
+        <button
+          onClick={startScript}
+          disabled={isRunning || !selectedDataFile}
+          className="btn primary"
+        >
           {isRunning ? "Running..." : "Start P3 analysis"}
         </button>
-        <button onClick={stopScript} disabled={!isRunning} className="btn danger">
+        <button
+          onClick={stopScript}
+          disabled={!isRunning}
+          className="btn danger"
+        >
           Stop
         </button>
         <button onClick={clearOutput} className="btn subtle">
@@ -458,7 +551,9 @@ const P3Analysis: React.FC = () => {
         </div>
         <span className="spacer" />
         <span className="badge">{isRunning ? "Running" : "Stopped"}</span>
-        {duration > 0 && <span className="badge info">{formatDuration(duration)}</span>}
+        {duration > 0 && (
+          <span className="badge info">{formatDuration(duration)}</span>
+        )}
       </div>
 
       {error && <div className="badge warning">{error}</div>}
@@ -467,6 +562,7 @@ const P3Analysis: React.FC = () => {
         availableFiles={availableFiles}
         selectedDataFile={selectedDataFile}
         setSelectedDataFile={setSelectedDataFile}
+        isLoadingFiles={availableFiles.length === 0 && !selectedDataFile}
       />
 
       {existingThemes.length > 0 && (
@@ -494,7 +590,10 @@ const P3Analysis: React.FC = () => {
             {existingThemes.length > 20 && !showAllThemes && (
               <div className="more-codes-indicator">
                 <span>+ {existingThemes.length - 20} more completed cases</span>
-                <button className="btn subtle" onClick={() => setShowAllThemes(true)}>
+                <button
+                  className="btn subtle"
+                  onClick={() => setShowAllThemes(true)}
+                >
                   View all generated themes
                 </button>
               </div>
@@ -503,7 +602,10 @@ const P3Analysis: React.FC = () => {
             {showAllThemes && existingThemes.length > 20 && (
               <div className="more-codes-indicator">
                 <span>Showing all {existingThemes.length} cases</span>
-                <button className="btn subtle" onClick={() => setShowAllThemes(false)}>
+                <button
+                  className="btn subtle"
+                  onClick={() => setShowAllThemes(false)}
+                >
                   Show less
                 </button>
               </div>
@@ -513,13 +615,18 @@ const P3Analysis: React.FC = () => {
       )}
 
       {existingThemes.length > 0 && (
-        <ThemesOrganizer themesData={existingThemes} onThemeUpdate={handleThemeUpdate} />
+        <ThemesOrganizer
+          themesData={existingThemes}
+          onThemeUpdate={handleThemeUpdate}
+        />
       )}
 
       {analysisStatus.recentThemes.length > 0 && (
         <section className="card">
           <div className="card-header row">
-            <h3>Generated candidate themes ({analysisStatus.recentThemes.length})</h3>
+            <h3>
+              Generated candidate themes ({analysisStatus.recentThemes.length})
+            </h3>
           </div>
           <div className="card-body">
             <div className="themes-list">
@@ -528,15 +635,19 @@ const P3Analysis: React.FC = () => {
                   key={theme.caseId}
                   theme={theme as any}
                   onEdit={() => {}}
-                  onSave={() => {}}
+                  onSave={(caseId, newTheme) =>
+                    handleThemeUpdate(caseId, "candidate_theme", newTheme)
+                  }
                   isSaving={false}
-                  onThemeUpdate={handleThemeUpdate}
                 />
               ))}
             </div>
             {analysisStatus.recentThemes.length > 10 && (
               <div className="more-themes-indicator">
-                <span>+ {analysisStatus.recentThemes.length - 10} more themes generated</span>
+                <span>
+                  + {analysisStatus.recentThemes.length - 10} more themes
+                  generated
+                </span>
               </div>
             )}
           </div>
@@ -549,5 +660,3 @@ const P3Analysis: React.FC = () => {
 };
 
 export default P3Analysis;
-
-
