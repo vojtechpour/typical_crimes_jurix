@@ -214,6 +214,7 @@ const ScriptRunner: React.FC = () => {
   const [duration, setDuration] = useState<number>(0);
   const [selectedDataFile, setSelectedDataFile] = useState<string>("");
   const [availableFiles, setAvailableFiles] = useState<any[]>([]);
+  const [filesLoading, setFilesLoading] = useState<boolean>(true);
 
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>({
     phase: "Idle",
@@ -588,10 +589,14 @@ const ScriptRunner: React.FC = () => {
 
   const loadAvailableFiles = async () => {
     try {
+      setFilesLoading(true);
       const response = await fetch("/api/data-files");
       const files = await response.json();
       setAvailableFiles(files);
     } catch {}
+    finally {
+      setFilesLoading(false);
+    }
   };
 
   const handleDeleteSelectedFile = async () => {
@@ -1407,7 +1412,11 @@ const ScriptRunner: React.FC = () => {
           <h3>Select data file for analysis</h3>
         </div>
         <div className="card-body">
-          {availableFiles.length === 0 && !selectedDataFile ? (
+          {filesLoading ? (
+            <div className="no-files-available">
+              <p>Loading available files…</p>
+            </div>
+          ) : availableFiles.length === 0 ? (
             <div className="no-files-available">
               <p>No files available for analysis.</p>
               <p>
