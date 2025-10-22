@@ -9,13 +9,13 @@ export interface ThemeItem {
 export interface UseThemeHandlersParams {
   themesData: ThemeItem[];
   onThemeUpdate?: (caseId: string | number, field: string, value: any) => Promise<void> | void;
-  selectedLeftTheme: string;
-  selectedRightTheme: string;
+  selectedLeftTheme: string | null;
+  selectedRightTheme: string | null;
   setLeftCandidateThemes: React.Dispatch<React.SetStateAction<string[]>>;
   setRightCandidateThemes: React.Dispatch<React.SetStateAction<string[]>>;
   setAllThemes: React.Dispatch<React.SetStateAction<any[]>>;
-  setSelectedLeftTheme: React.Dispatch<React.SetStateAction<string>>;
-  setSelectedRightTheme: React.Dispatch<React.SetStateAction<string>>;
+  setSelectedLeftTheme: React.Dispatch<React.SetStateAction<string | null>>;
+  setSelectedRightTheme: React.Dispatch<React.SetStateAction<string | null>>;
   addChange?: (change: any) => void;
 }
 

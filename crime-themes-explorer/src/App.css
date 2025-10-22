@@ -958,10 +958,10 @@
 .no-changes {
   text-align: center;
   padding: 40px;
-  color: #666;
-  background: #f8f9fa;
+  color: var(--text-muted);
+  background: var(--surface-2);
   border-radius: 10px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
 }
 
 .changes-list {
@@ -2654,6 +2654,46 @@
   transform: none;
 }
 
+/* Add More Codes Button */
+.add-more-codes-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  background: linear-gradient(
+    135deg,
+    var(--brand-600) 0%,
+    var(--brand-700) 100%
+  );
+  color: white;
+  border: 1px solid var(--brand-600);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease,
+    box-shadow 0.2s ease;
+  margin-right: 8px;
+}
+
+.add-more-codes-btn:hover:not(:disabled) {
+  background: linear-gradient(
+    135deg,
+    var(--brand-700) 0%,
+    var(--brand-800) 100%
+  );
+  border-color: var(--brand-700);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--brand-600) 30%, transparent);
+}
+
+.add-more-codes-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
 /* Regeneration Modal */
 .regenerate-modal {
   max-width: 600px;
@@ -3489,25 +3529,25 @@
 
 /* Theme Generation Items */
 .theme-generation-item {
-  background: white;
+  background: var(--surface-1);
   border-radius: 12px;
-  border: 2px solid #ffe0b2;
+  border: 2px solid var(--border);
   margin-bottom: 15px;
   overflow: hidden;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 .theme-generation-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(255, 152, 0, 0.15);
-  border-color: #ff9800;
+  box-shadow: var(--shadow-md);
+  border-color: var(--brand-600);
 }
 
 .theme-generation-item .item-header {
-  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  background: var(--surface-2);
   padding: 12px 20px;
-  border-bottom: 1px solid #ffcc02;
+  border-bottom: 1px solid var(--border);
 }
 
 .theme-generation-item .case-info {
@@ -3518,16 +3558,17 @@
 
 .theme-generation-item .case-id {
   font-weight: 700;
-  color: #e65100;
+  color: var(--text-strong);
   font-size: 14px;
 }
 
 .theme-generation-item .generation-time {
   font-size: 12px;
-  color: #ff6f00;
-  background: white;
+  color: var(--text-muted);
+  background: var(--surface-1);
   padding: 2px 8px;
   border-radius: 12px;
+  border: 1px solid var(--border);
 }
 
 .theme-generation-item .theme-content {
@@ -3536,7 +3577,7 @@
 
 .theme-generation-item .theme-display h6 {
   margin: 0 0 10px 0;
-  color: #e65100;
+  color: var(--text);
   font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
@@ -3551,7 +3592,7 @@
 }
 
 .theme-generation-item .theme-tag {
-  background: linear-gradient(135deg, #ff9800 0%, #ff6f00 100%);
+  background: var(--gradient-brand);
   color: white;
   padding: 8px 16px;
   border-radius: 20px;
@@ -3559,12 +3600,12 @@
   font-size: 14px;
   flex: 1;
   word-break: break-word;
-  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--brand-600) 30%, transparent);
 }
 
 .theme-generation-item .edit-theme-btn {
   background: transparent;
-  border: 2px solid #ff9800;
+  border: 2px solid var(--brand-600);
   border-radius: 50%;
   width: 32px;
   height: 32px;
@@ -3574,10 +3615,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--text);
 }
 
 .theme-generation-item .edit-theme-btn:hover {
-  background: #ff9800;
+  background: var(--brand-600);
+  color: white;
   transform: scale(1.1);
 }
 
@@ -3591,12 +3634,12 @@
 .theme-generation-item .initial-codes-display {
   margin-top: 15px;
   padding-top: 15px;
-  border-top: 1px solid #ffe0b2;
+  border-top: 1px solid var(--border);
 }
 
 .theme-generation-item .initial-codes-display h6 {
   margin: 0 0 10px 0;
-  color: #ff6f00;
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -3610,13 +3653,13 @@
 }
 
 .theme-generation-item .source-code-tag {
-  background: #fff3e0;
-  color: #e65100;
+  background: var(--surface-2);
+  color: var(--text);
   padding: 4px 10px;
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
-  border: 1px solid #ffe0b2;
+  border: 1px solid var(--border);
 }
 
 /* Theme editing */
@@ -3681,17 +3724,17 @@
 
 /* Live themes section */
 .live-themes-section {
-  background: white;
+  background: var(--surface-1);
   border-radius: 16px;
   padding: 25px;
   margin-bottom: 25px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  border-left: 4px solid #ff9800;
+  box-shadow: var(--shadow-md);
+  border-left: 4px solid var(--brand-600);
 }
 
 .live-themes-section .section-header h4 {
   margin: 0 0 20px 0;
-  color: #e65100;
+  color: var(--text-strong);
   font-size: 1.3rem;
   font-weight: 700;
 }
@@ -3707,26 +3750,26 @@
 }
 
 .themes-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--surface-2);
   border-radius: 3px;
 }
 
 .themes-list::-webkit-scrollbar-thumb {
-  background: #ff9800;
+  background: var(--brand-600);
   border-radius: 3px;
 }
 
 .themes-list::-webkit-scrollbar-thumb:hover {
-  background: #ff6f00;
+  background: var(--brand-700);
 }
 
 .more-themes-indicator {
   text-align: center;
   padding: 15px;
-  color: #ff6f00;
+  color: var(--text-muted);
   font-weight: 600;
   font-style: italic;
-  border-top: 1px solid #ffe0b2;
+  border-top: 1px solid var(--border);
   margin-top: 15px;
 }
 

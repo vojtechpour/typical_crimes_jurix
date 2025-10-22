@@ -179,18 +179,53 @@ def main():
 
     total_cases = len(data)
     processed_cases = len([dp for dp in data.values() if OUTPUT_FIELD in dp])
-    remaining_cases = total_cases - processed_cases
+    
+    # Filter cases: only consider cases with P2 codes (initial_code_0)
+    cases_with_p2_codes = {
+        id_slt: dp for id_slt, dp in data.items()
+        if 'initial_code_0' in dp and dp['initial_code_0']
+    }
+    total_cases_with_p2 = len(cases_with_p2_codes)
+    processed_with_p2 = len([dp for dp in cases_with_p2_codes.values() if OUTPUT_FIELD in dp])
+    remaining_cases = total_cases_with_p2 - processed_with_p2
+    
     unique_themes_count = count_unique_themes(data)
 
     logger.info(f"Total cases in dataset: {total_cases:,}")
-    logger.info(f"Already processed cases: {processed_cases:,}")
-    logger.info(f"Remaining cases to process: {remaining_cases:,}")
+    logger.info(f"Cases with P2 codes: {total_cases_with_p2:,}")
+    logger.info(f"Already processed cases (with P2 codes): {processed_with_p2:,}")
+    logger.info(f"Remaining cases to process (with P2 codes): {remaining_cases:,}")
     logger.info(f"Unique themes so far: {unique_themes_count:,}")
+    
+    # Early exit if no cases with P2 codes
+    if total_cases_with_p2 == 0:
+        logger.warning("⚠️ No cases with P2 codes found in the dataset!")
+        logger.warning("Phase 3 requires cases to have initial codes (Phase 2 output) before generating themes.")
+        logger.warning("Please run Phase 2 first to generate initial codes.")
+        log_p3_phase_update("Stopped", {
+            "total_cases": total_cases,
+            "cases_with_p2_codes": 0,
+            "reason": "No cases with P2 codes found"
+        })
+        return
+    
+    # Early exit if all cases with P2 codes are already processed
+    if remaining_cases == 0:
+        logger.info("✅ All cases with P2 codes have already been processed!")
+        log_p3_phase_update("Complete", {
+            "total_cases": total_cases,
+            "cases_with_p2_codes": total_cases_with_p2,
+            "processed_cases": processed_with_p2,
+            "unique_themes": unique_themes_count,
+            "reason": "All cases with P2 codes already processed"
+        })
+        return
 
     # Log initial phase update
     log_p3_phase_update("Initializing", {
         "total_cases": total_cases,
-        "processed_cases": processed_cases,
+        "cases_with_p2_codes": total_cases_with_p2,
+        "processed_cases": processed_with_p2,
         "remaining_cases": remaining_cases,
         "unique_themes": unique_themes_count,
         "data_file": str(DATA_FILE)
@@ -214,15 +249,17 @@ def main():
     if remaining_cases > 0:
         log_p3_phase_update("Processing", {
             "total_cases": total_cases,
-            "processed_cases": processed_cases,
+            "cases_with_p2_codes": total_cases_with_p2,
+            "processed_cases": processed_with_p2,
             "unique_themes": unique_themes_count
         })
 
-    logger.info("Starting main processing loop...")
+    logger.info("Starting main processing loop (prioritizing cases with P2 codes)...")
     processed_count = 0
     total_processed_this_run = 0
 
-    for id_slt, data_point in data.items():
+    # Process only cases with P2 codes
+    for id_slt, data_point in cases_with_p2_codes.items():
         if OUTPUT_FIELD in data_point:
             continue
         
@@ -317,7 +354,7 @@ def main():
                     # Save immediately after each case
                     if save_data_safely(data, DATA_FILE):
                         total_processed_this_run += 1
-                        current_processed = processed_cases + total_processed_this_run
+                        current_processed = processed_with_p2 + total_processed_this_run
                         current_unique_themes = count_unique_themes(data)
                         
                         # Log progress update for WebSocket
@@ -327,13 +364,13 @@ def main():
                             initial_codes=initial_codes,
                             progress_info={
                                 "processed": current_processed,
-                                "total": total_cases,
+                                "total": total_cases_with_p2,
                                 "unique_themes": current_unique_themes,
-                                "percentage": round((current_processed / total_cases) * 100, 1)
+                                "percentage": round((current_processed / total_cases_with_p2) * 100, 1) if total_cases_with_p2 > 0 else 0
                             }
                         )
                         
-                        logger.info(f"Progress: {current_processed}/{total_cases} ({((current_processed)/total_cases*100):.1f}%)")
+                        logger.info(f"Progress: {current_processed}/{total_cases_with_p2} ({((current_processed)/total_cases_with_p2*100) if total_cases_with_p2 > 0 else 0:.1f}%)")
                     else:
                         logger.error(f"❌ Failed to save case {id_slt}")
                     
@@ -351,12 +388,13 @@ def main():
 
     logger.info(f"Finished processing loop. Processed {total_processed_this_run} new cases.")
 
-    final_processed = processed_cases + total_processed_this_run
+    final_processed = processed_with_p2 + total_processed_this_run
     final_unique_themes = count_unique_themes(data)
 
     # Log completion
     log_p3_phase_update("Complete", {
         "total_cases": total_cases,
+        "cases_with_p2_codes": total_cases_with_p2,
         "processed_cases": final_processed,
         "unique_themes": final_unique_themes,
         "new_cases_this_run": total_processed_this_run
@@ -364,7 +402,7 @@ def main():
 
     logger.info("=== Phase 3 Analysis Complete ===")
     logger.info(f"Total cases processed: {total_processed_this_run}")
-    logger.info(f"Final progress: {final_processed}/{total_cases} ({((final_processed)/total_cases*100):.1f}%)")
+    logger.info(f"Final progress (cases with P2 codes): {final_processed}/{total_cases_with_p2} ({((final_processed)/total_cases_with_p2*100) if total_cases_with_p2 > 0 else 0:.1f}%)")
     logger.info(f"Final unique themes: {final_unique_themes}")
     logger.info("💾 All cases saved individually as processed")
     logger.info("Log saved to: analysis_p3.log")

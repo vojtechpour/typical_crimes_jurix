@@ -1,54 +1,106 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import "./ThemesOrganizer.css";
 import CandidateThemeItem from "./CandidateThemeItem";
-import ChangeTracker from "./ChangeTracker";
+import ChangeTracker, { Change as ChangeRecord } from "./ChangeTracker";
 import AiAssistant from "./AiAssistant";
-import { generateAiSuggestions } from "../utils/aiUtils";
-import { useThemeHandlers } from "../hooks/useThemeHandlers";
+import {
+  generateAiSuggestions,
+  type AiSuggestion,
+  type AiReasoningEffort,
+  type AiVerbosity,
+} from "../utils/aiUtils";
+import { useThemeHandlers, type ThemeItem } from "../hooks/useThemeHandlers";
 
-const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
-  const [allThemes, setAllThemes] = useState([]);
-  const [selectedLeftTheme, setSelectedLeftTheme] = useState(null);
-  const [selectedRightTheme, setSelectedRightTheme] = useState(null);
-  const [leftCandidateThemes, setLeftCandidateThemes] = useState([]);
-  const [rightCandidateThemes, setRightCandidateThemes] = useState([]);
-  const [draggedItem, setDraggedItem] = useState(null);
-  const [dragOverTarget, setDragOverTarget] = useState(null);
-  const [addingNewLeft, setAddingNewLeft] = useState(false);
-  const [addingNewRight, setAddingNewRight] = useState(false);
-  const [newCandidateLeft, setNewCandidateLeft] = useState("");
-  const [newCandidateRight, setNewCandidateRight] = useState("");
-  const [changes, setChanges] = useState([]);
+type ThemeColumnSide = "left" | "right";
+
+interface ThemeGroup {
+  name: string;
+  candidateThemes: string[];
+}
+
+interface ChangeItem extends ChangeRecord {
+  details?: Record<string, unknown>;
+  reverted: boolean;
+}
+
+interface DraggedItem {
+  candidateTheme: string;
+  fromSide: ThemeColumnSide;
+}
+
+interface ThemesOrganizerProps {
+  themesData?: ThemeItem[];
+  onThemeUpdate?: (
+    caseId: string | number,
+    field: string,
+    value: string | null
+  ) => Promise<void> | void;
+}
+
+const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
+  themesData = [],
+  onThemeUpdate,
+}) => {
+  const [allThemes, setAllThemes] = useState<ThemeGroup[]>([]);
+  const [selectedLeftTheme, setSelectedLeftTheme] = useState<string | null>(
+    null
+  );
+  const [selectedRightTheme, setSelectedRightTheme] = useState<string | null>(
+    null
+  );
+  const [leftCandidateThemes, setLeftCandidateThemes] = useState<string[]>([]);
+  const [rightCandidateThemes, setRightCandidateThemes] = useState<string[]>(
+    []
+  );
+  const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<ThemeColumnSide | null>(
+    null
+  );
+  const [addingNewLeft, setAddingNewLeft] = useState<boolean>(false);
+  const [addingNewRight, setAddingNewRight] = useState<boolean>(false);
+  const [newCandidateLeft, setNewCandidateLeft] = useState<string>("");
+  const [newCandidateRight, setNewCandidateRight] = useState<string>("");
+  const [changes, setChanges] = useState<ChangeItem[]>([]);
 
   // Theme editing state
-  const [editingThemeLeft, setEditingThemeLeft] = useState(false);
-  const [editingThemeRight, setEditingThemeRight] = useState(false);
-  const [editThemeValueLeft, setEditThemeValueLeft] = useState("");
-  const [editThemeValueRight, setEditThemeValueRight] = useState("");
+  const [editingThemeLeft, setEditingThemeLeft] = useState<boolean>(false);
+  const [editingThemeRight, setEditingThemeRight] = useState<boolean>(false);
+  const [editThemeValueLeft, setEditThemeValueLeft] = useState<string>("");
+  const [editThemeValueRight, setEditThemeValueRight] = useState<string>("");
 
   // AI Assistant state
-  const [aiInstructions, setAiInstructions] = useState("");
-  const [isAiProcessing, setIsAiProcessing] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState(null);
-  const [showAiSuggestions, setShowAiSuggestions] = useState(false);
+  const [aiInstructions, setAiInstructions] = useState<string>("");
+  const [isAiProcessing, setIsAiProcessing] = useState<boolean>(false);
+  const [aiSuggestions, setAiSuggestions] = useState<AiSuggestion[]>([]);
+  const [showAiSuggestions, setShowAiSuggestions] = useState<boolean>(false);
   // AI settings (model + reasoning + verbosity)
-  const [useGpt5, setUseGpt5] = useState(false);
-  const [aiModel, setAiModel] = useState("gpt-5"); // gpt-5 | gpt-5-mini | gpt-5-nano
-  const [reasoningEffort, setReasoningEffort] = useState("medium"); // minimal | low | medium | high
-  const [verbosity, setVerbosity] = useState("medium"); // low | medium | high
+  const [useGpt5, setUseGpt5] = useState<boolean>(false);
+  const [aiModel, setAiModel] = useState<string>("gpt-5"); // gpt-5 | gpt-5-mini | gpt-5-nano
+  const [reasoningEffort, setReasoningEffort] =
+    useState<AiReasoningEffort>("medium"); // minimal | low | medium | high
+  const [verbosity, setVerbosity] = useState<AiVerbosity>("medium"); // low | medium | high
 
   // Helper function to add a change to the tracker
-  const addChange = (type, description, details = {}) => {
-    const change = {
-      id: Date.now() + Math.random(),
-      type,
-      description,
-      timestamp: new Date(),
-      details,
+  const addChange = (change: ChangeRecord) => {
+    const changeItem: ChangeItem = {
+      ...change,
+      details: {},
       reverted: false,
     };
-    setChanges((prev) => [change, ...prev.slice(0, 9)]); // Keep last 10 changes
+    setChanges((prev) => [changeItem, ...prev.slice(0, 9)]);
   };
+
+  // Helper to create a change record
+  const createChange = (
+    type: string,
+    description: string,
+    details: Record<string, unknown> = {}
+  ): ChangeRecord => ({
+    id: Date.now() + Math.random(),
+    type,
+    description,
+    timestamp: new Date(),
+  });
 
   // Use the custom hook for theme handlers
   const {
@@ -78,20 +130,46 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
   });
 
   // Function to revert a specific change
-  const revertChange = async (changeId) => {
+  const revertChange = async (changeId: string | number) => {
     const change = changes.find((c) => c.id === changeId);
     if (!change || change.reverted) return;
 
     try {
       switch (change.type) {
         case "theme":
-          await revertThemeMove(change.details);
+          if (change.details) {
+            await revertThemeMove(
+              change.details as {
+                candidateTheme: string;
+                fromTheme: string;
+                toTheme: string;
+              }
+            );
+          }
           break;
         case "candidate_theme":
-          await revertCandidateThemeChange(change.details);
+          if (change.details) {
+            await revertCandidateThemeChange(
+              change.details as {
+                action: "rename" | "delete" | "add";
+                candidateTheme: string;
+                oldName?: string;
+                newName?: string;
+                theme: string;
+              }
+            );
+          }
           break;
         case "main_theme":
-          await revertMainThemeChange(change.details);
+          if (change.details) {
+            await revertMainThemeChange(
+              change.details as {
+                action: string;
+                oldName: string;
+                newName: string;
+              }
+            );
+          }
           break;
         default:
           console.log("Unknown change type");
@@ -128,13 +206,39 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
       for (const change of sortedChanges) {
         switch (change.type) {
           case "theme":
-            await revertThemeMove(change.details);
+            if (change.details) {
+              await revertThemeMove(
+                change.details as {
+                  candidateTheme: string;
+                  fromTheme: string;
+                  toTheme: string;
+                }
+              );
+            }
             break;
           case "candidate_theme":
-            await revertCandidateThemeChange(change.details);
+            if (change.details) {
+              await revertCandidateThemeChange(
+                change.details as {
+                  action: "rename" | "delete" | "add";
+                  candidateTheme: string;
+                  oldName?: string;
+                  newName?: string;
+                  theme: string;
+                }
+              );
+            }
             break;
           case "main_theme":
-            await revertMainThemeChange(change.details);
+            if (change.details) {
+              await revertMainThemeChange(
+                change.details as {
+                  action: string;
+                  oldName: string;
+                  newName: string;
+                }
+              );
+            }
             break;
           default:
             break;
@@ -168,10 +272,10 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
     });
 
     // Convert to array format with unique candidate themes
-    const themes = Array.from(themeMap.entries()).map(
+    const themes: ThemeGroup[] = Array.from(themeMap.entries()).map(
       ([theme, candidateSet]) => ({
         name: theme,
-        candidateThemes: Array.from(candidateSet), // Convert Set to Array for uniqueness
+        candidateThemes: Array.from(candidateSet) as string[], // Convert Set to Array for uniqueness
       })
     );
 
@@ -281,14 +385,24 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
         `Moved "${candidateTheme}" from "${sourceTheme}" to "${targetTheme}"`
       );
 
-      addChange(
+      const change = createChange(
         "theme",
-        `Moved "${candidateTheme}" from "${sourceTheme}" to "${targetTheme}"`,
-        {
-          candidateTheme,
-          fromTheme: sourceTheme,
-          toTheme: targetTheme,
-        }
+        `Moved "${candidateTheme}" from "${sourceTheme}" to "${targetTheme}"`
+      );
+      addChange(change);
+      setChanges((prev) =>
+        prev.map((c) =>
+          c.id === change.id
+            ? {
+                ...c,
+                details: {
+                  candidateTheme,
+                  fromTheme: sourceTheme,
+                  toTheme: targetTheme,
+                },
+              }
+            : c
+        )
       );
     } catch (error) {
       console.error("Error updating theme assignments:", error);
@@ -338,15 +452,26 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
 
       console.log(`Renamed candidate theme from "${oldName}" to "${newName}"`);
 
-      addChange(
+      const change = createChange(
         "candidate_theme",
-        `Renamed candidate theme from "${oldName}" to "${newName}"`,
-        {
-          action: "rename",
-          oldName,
-          newName,
-          theme: side === "left" ? selectedLeftTheme : selectedRightTheme,
-        }
+        `Renamed candidate theme from "${oldName}" to "${newName}"`
+      );
+      addChange(change);
+      setChanges((prev) =>
+        prev.map((c) =>
+          c.id === change.id
+            ? {
+                ...c,
+                details: {
+                  action: "rename",
+                  oldName,
+                  newName,
+                  theme:
+                    side === "left" ? selectedLeftTheme : selectedRightTheme,
+                },
+              }
+            : c
+        )
       );
     } catch (error) {
       console.error("Error updating candidate theme name:", error);
@@ -395,14 +520,25 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
 
       console.log(`Deleted candidate theme "${candidateTheme}"`);
 
-      addChange(
+      const change = createChange(
         "candidate_theme",
-        `Deleted candidate theme "${candidateTheme}"`,
-        {
-          action: "delete",
-          candidateTheme,
-          theme: side === "left" ? selectedLeftTheme : selectedRightTheme,
-        }
+        `Deleted candidate theme "${candidateTheme}"`
+      );
+      addChange(change);
+      setChanges((prev) =>
+        prev.map((c) =>
+          c.id === change.id
+            ? {
+                ...c,
+                details: {
+                  action: "delete",
+                  candidateTheme,
+                  theme:
+                    side === "left" ? selectedLeftTheme : selectedRightTheme,
+                },
+              }
+            : c
+        )
       );
     } catch (error) {
       console.error("Error deleting candidate theme:", error);
@@ -451,14 +587,24 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
         `Added new candidate theme "${newCandidate.trim()}" to theme "${targetTheme}"`
       );
 
-      addChange(
+      const change = createChange(
         "candidate_theme",
-        `Added new candidate theme "${newCandidate.trim()}" to theme "${targetTheme}"`,
-        {
-          action: "add",
-          candidateTheme: newCandidate.trim(),
-          theme: targetTheme,
-        }
+        `Added new candidate theme "${newCandidate.trim()}" to theme "${targetTheme}"`
+      );
+      addChange(change);
+      setChanges((prev) =>
+        prev.map((c) =>
+          c.id === change.id
+            ? {
+                ...c,
+                details: {
+                  action: "add",
+                  candidateTheme: newCandidate.trim(),
+                  theme: targetTheme,
+                },
+              }
+            : c
+        )
       );
     } catch (error) {
       console.error("Error adding new candidate theme:", error);
@@ -496,24 +642,28 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
   };
 
   // Theme editing functions
-  const handleStartThemeEdit = (side) => {
+  const handleStartThemeEdit = (side: ThemeColumnSide) => {
     const themeName = side === "left" ? selectedLeftTheme : selectedRightTheme;
     if (side === "left") {
       setEditingThemeLeft(true);
-      setEditThemeValueLeft(themeName);
+      setEditThemeValueLeft(themeName || "");
     } else {
       setEditingThemeRight(true);
-      setEditThemeValueRight(themeName);
+      setEditThemeValueRight(themeName || "");
     }
   };
 
-  const handleSaveThemeEdit = async (side) => {
+  const handleSaveThemeEdit = async (side: ThemeColumnSide) => {
     const oldThemeName =
       side === "left" ? selectedLeftTheme : selectedRightTheme;
     const newThemeName =
       side === "left" ? editThemeValueLeft : editThemeValueRight;
 
-    if (!newThemeName.trim() || newThemeName === oldThemeName) {
+    if (
+      !newThemeName.trim() ||
+      newThemeName === oldThemeName ||
+      !oldThemeName
+    ) {
       handleCancelThemeEdit(side);
       return;
     }
@@ -550,14 +700,24 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
       }
 
       // Add to change tracker
-      addChange(
+      const change = createChange(
         "main_theme",
-        `Renamed theme from "${oldThemeName}" to "${newThemeName.trim()}"`,
-        {
-          action: "rename",
-          oldName: oldThemeName,
-          newName: newThemeName.trim(),
-        }
+        `Renamed theme from "${oldThemeName}" to "${newThemeName.trim()}"`
+      );
+      addChange(change);
+      setChanges((prev) =>
+        prev.map((c) =>
+          c.id === change.id
+            ? {
+                ...c,
+                details: {
+                  action: "rename",
+                  oldName: oldThemeName,
+                  newName: newThemeName.trim(),
+                },
+              }
+            : c
+        )
       );
 
       console.log(
@@ -566,17 +726,19 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
     } catch (error) {
       console.error("Error updating theme name:", error);
       // Revert local changes on error
-      setAllThemes((prev) =>
-        prev.map((theme) =>
-          theme.name === newThemeName.trim()
-            ? { ...theme, name: oldThemeName }
-            : theme
-        )
-      );
-      if (side === "left") {
-        setSelectedLeftTheme(oldThemeName);
-      } else {
-        setSelectedRightTheme(oldThemeName);
+      if (oldThemeName) {
+        setAllThemes((prev) =>
+          prev.map((theme) =>
+            theme.name === newThemeName.trim()
+              ? { ...theme, name: oldThemeName }
+              : theme
+          )
+        );
+        if (side === "left") {
+          setSelectedLeftTheme(oldThemeName);
+        } else {
+          setSelectedRightTheme(oldThemeName);
+        }
       }
     }
   };
@@ -600,9 +762,9 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
   };
 
   // AI Assistant functions
-  const handleAiAnalysis = async (followUpQuestion = null) => {
+  const handleAiAnalysis = async (followUpQuestion?: string) => {
     const instructionsToUse = followUpQuestion || aiInstructions;
-    const isFollowUp = followUpQuestion !== null;
+    const isFollowUp = !!followUpQuestion;
 
     if (!instructionsToUse.trim()) {
       alert(
@@ -647,13 +809,9 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
         }
       );
 
-      if (isFollowUp) {
-        // Append follow-up responses to existing suggestions
-        setAiSuggestions((prev) => [...(prev || []), ...newSuggestions]);
-      } else {
-        // Replace suggestions for initial analysis
-        setAiSuggestions(newSuggestions);
-      }
+      setAiSuggestions((prev) =>
+        isFollowUp ? [...prev, ...newSuggestions] : newSuggestions
+      );
 
       setShowAiSuggestions(true);
     } catch (error) {
@@ -665,35 +823,35 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
   };
 
   // Apply a specific AI suggestion
-  const applySuggestion = async (suggestion) => {
+  const applySuggestion = async (suggestion: AiSuggestion) => {
     try {
       switch (suggestion.action.type) {
         case "move_candidate":
-          await handleSuggestionMove(suggestion.action);
+          await handleSuggestionMove(suggestion.action as any);
           break;
         case "move_multiple_candidates":
-          await handleSuggestionMoveMultiple(suggestion.action);
+          await handleSuggestionMoveMultiple(suggestion.action as any);
           break;
         case "rename_candidate":
-          await handleSuggestionRename(suggestion.action);
+          await handleSuggestionRename(suggestion.action as any);
           break;
         case "rename_theme":
-          await handleSuggestionThemeRename(suggestion.action);
+          await handleSuggestionThemeRename(suggestion.action as any);
           break;
         case "add_candidate":
-          await handleSuggestionAdd(suggestion.action);
+          await handleSuggestionAdd(suggestion.action as any);
           break;
         case "delete_candidate":
-          await handleSuggestionDelete(suggestion.action);
+          await handleSuggestionDelete(suggestion.action as any);
           break;
         case "create_theme":
-          await handleSuggestionCreateTheme(suggestion.action);
+          await handleSuggestionCreateTheme(suggestion.action as any);
           break;
         case "merge_themes":
-          await handleSuggestionMergeThemes(suggestion.action);
+          await handleSuggestionMergeThemes(suggestion.action as any);
           break;
         case "merge_candidates":
-          await handleSuggestionMergeCandidates(suggestion.action);
+          await handleSuggestionMergeCandidates(suggestion.action as any);
           break;
         default:
           console.log("Unknown suggestion type:", suggestion.action.type);
@@ -704,10 +862,24 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
       setAiSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id));
 
       // Add to change tracker
-      addChange("ai_suggestion", `Applied AI suggestion: ${suggestion.title}`, {
-        action: "ai_applied",
-        suggestion: suggestion,
-      });
+      const change = createChange(
+        "ai_suggestion",
+        `Applied AI suggestion: ${suggestion.title}`
+      );
+      addChange(change);
+      setChanges((prev) =>
+        prev.map((c) =>
+          c.id === change.id
+            ? {
+                ...c,
+                details: {
+                  action: "ai_applied",
+                  suggestion: suggestion,
+                },
+              }
+            : c
+        )
+      );
     } catch (error) {
       console.error("Error applying suggestion:", error);
       alert("Failed to apply suggestion. Please try again.");
@@ -715,12 +887,26 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
   };
 
   // Reject a suggestion
-  const rejectSuggestion = (suggestion) => {
+  const rejectSuggestion = (suggestion: AiSuggestion) => {
     setAiSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id));
-    addChange("ai_suggestion", `Rejected AI suggestion: ${suggestion.title}`, {
-      action: "ai_rejected",
-      suggestion: suggestion,
-    });
+    const change = createChange(
+      "ai_suggestion",
+      `Rejected AI suggestion: ${suggestion.title}`
+    );
+    addChange(change);
+    setChanges((prev) =>
+      prev.map((c) =>
+        c.id === change.id
+          ? {
+              ...c,
+              details: {
+                action: "ai_rejected",
+                suggestion: suggestion,
+              },
+            }
+          : c
+      )
+    );
   };
 
   return (
@@ -1030,8 +1216,9 @@ const ThemesOrganizer = ({ themesData = [], onThemeUpdate }) => {
           verbosity,
           setUseGpt5,
           setAiModel,
-          setReasoningEffort,
-          setVerbosity,
+          setReasoningEffort: (v: string) =>
+            setReasoningEffort(v as AiReasoningEffort),
+          setVerbosity: (v: string) => setVerbosity(v as AiVerbosity),
         }}
       />
     </div>

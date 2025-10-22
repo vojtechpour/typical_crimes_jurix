@@ -180,11 +180,19 @@ def response_to_json(response):
     
     logger.debug(f"Raw response content: {plain_text[:100]}...")  # Print first 100 chars to avoid flooding console
     
-    # Handle markdown code blocks
-    if plain_text.startswith("```json") and "```" in plain_text[6:]:
+    # Handle markdown code blocks - search for JSON anywhere in the response
+    if "```json" in plain_text:
+        # Extract content between ```json and ```
         plain_text = plain_text.split("```json", 1)[1].split("```", 1)[0].strip()
-    elif plain_text.startswith("```") and "```" in plain_text[3:]:
-        plain_text = plain_text.split("```", 1)[1].split("```", 1)[0].strip()
+    elif "```" in plain_text:
+        # Handle generic code blocks
+        parts = plain_text.split("```")
+        # Find the first block that looks like JSON (starts with { or [)
+        for part in parts[1::2]:  # Check odd-indexed parts (inside code blocks)
+            stripped = part.strip()
+            if stripped.startswith("{") or stripped.startswith("["):
+                plain_text = stripped
+                break
     
     # Add error handling for JSON parsing
     try:

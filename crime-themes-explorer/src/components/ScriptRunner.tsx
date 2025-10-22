@@ -1,14 +1,16 @@
-import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useLayoutEffect,
+  useCallback,
+} from "react";
 import {
   FiEdit2,
   FiTrash2,
-  FiCheck,
-  FiX,
   FiRefreshCw,
   FiPlus,
   FiLoader,
-  FiFileText,
-  FiTag,
   FiEdit3,
   FiInfo,
   FiCheckCircle,
@@ -32,20 +34,18 @@ const IconPlus: React.FC<IconBaseProps> =
   FiPlus as unknown as React.FC<IconBaseProps>;
 const IconLoader: React.FC<IconBaseProps> =
   FiLoader as unknown as React.FC<IconBaseProps>;
-const IconFileText: React.FC<IconBaseProps> =
-  FiFileText as unknown as React.FC<IconBaseProps>;
-const IconTag: React.FC<IconBaseProps> =
-  FiTag as unknown as React.FC<IconBaseProps>;
 const IconEdit3: React.FC<IconBaseProps> =
   FiEdit3 as unknown as React.FC<IconBaseProps>;
 const IconInfo: React.FC<IconBaseProps> =
   FiInfo as unknown as React.FC<IconBaseProps>;
 
-type LogEntry = { id: number; text: string; timestamp: string; type: string };
+type LogType = "info" | "error" | "success" | "warning" | "output";
+
+type LogEntry = { id: number; text: string; timestamp: string; type: LogType };
 
 type Completion = {
   caseId: string | number;
-  codesText: any;
+  codesText: string | string[];
   timestamp: Date;
   caseText?: string;
   isExisting?: boolean;
@@ -80,20 +80,57 @@ type BulkProgress = {
   currentCaseId?: string | number;
 } | null;
 
+type UploadedFile = {
+  name: string;
+  size: number;
+  modified: string;
+  path: string;
+};
+
+type AnalysisResults = {
+  progress?: {
+    total: number;
+    processed: number;
+    percentage: number | string;
+  };
+  recentResults?: Array<{
+    id: string | number;
+    code: string;
+    text: string;
+  }>;
+  logInfo?: {
+    size: number;
+    lastModified: string;
+  };
+};
+
 type CodeGenerationItemProps = {
   completion: Completion;
-  onEdit: (caseId: string | number, newCodes: string[]) => void;
   onSave: (caseId: string | number, codes: string[]) => void;
   onRegenerate: (
     caseId: string | number,
     caseText: string,
     currentCodes: string
   ) => void;
+  onAddMoreCodes: (
+    caseId: string | number,
+    caseText: string,
+    currentCodes: string
+  ) => void;
   isSaving: boolean;
   isRegenerating: boolean;
+  isAddingMoreCodes: boolean;
 };
 
 type RegenerateModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (instructions: string) => void;
+  caseText: string;
+  currentCodes: string;
+};
+
+type AddMoreCodesModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (instructions: string) => void;
@@ -193,8 +230,13 @@ const RegenerateModal: React.FC<RegenerateModalProps> = ({
             Cancel
           </button>
           <button
-            onClick={() => onSubmit(instructions)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSubmit(instructions);
+            }}
             className="btn primary"
+            type="button"
           >
             <IconRefreshCw size={14} />
             <span style={{ marginLeft: 6 }}>Regenerate</span>
@@ -205,16 +247,129 @@ const RegenerateModal: React.FC<RegenerateModalProps> = ({
   );
 };
 
+const AddMoreCodesModal: React.FC<AddMoreCodesModalProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  caseText,
+  currentCodes,
+}) => {
+  const [instructions, setInstructions] = useState<string>("");
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content regenerate-modal">
+        <div className="modal-header">
+          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <IconPlus size={16} /> Add More Codes
+          </h3>
+        </div>
+        <div className="modal-body">
+          {caseText && (
+            <div className="case-preview">
+              <h4>Case Preview</h4>
+              <p className="case-text-preview">{caseText}</p>
+            </div>
+          )}
+
+          <div className="current-codes">
+            <h4>Existing Codes (will not be changed)</h4>
+            <div className="current-codes-display">{currentCodes}</div>
+          </div>
+
+          <div className="instructions-input">
+            <h4 style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <IconEdit3 size={14} /> Additional Coding Instructions
+            </h4>
+            <p className="instructions-help">
+              Provide specific instructions for what additional codes you want
+              to generate. The AI will add new codes while keeping all existing
+              codes unchanged. The new codes will complement your existing
+              analysis.
+            </p>
+
+            <div className="instruction-examples">
+              <p>
+                <strong>Examples of useful instructions:</strong>
+              </p>
+              <ul className="example-list">
+                <li>
+                  "Add codes focusing on geographic location and setting
+                  details"
+                </li>
+                <li>
+                  "Generate codes that capture victim-offender relationship"
+                </li>
+                <li>"Add codes about property value and damage assessment"</li>
+                <li>
+                  "Create codes highlighting security measures that were
+                  present"
+                </li>
+                <li>
+                  "Add codes about witness presence and community context"
+                </li>
+                <li>
+                  "Generate codes about investigation and evidence details"
+                </li>
+              </ul>
+            </div>
+
+            <textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Describe what additional aspects of the case you want to code. The existing codes will remain unchanged..."
+              className="instructions-textarea"
+              rows={4}
+              autoFocus
+            />
+
+            <div
+              className="instruction-tip"
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <IconInfo size={14} />
+              <span>
+                <strong>Tip:</strong> Be specific about what new aspects you
+                want to capture. The AI will avoid duplicating your existing
+                codes.
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button onClick={onClose} className="btn ghost">
+            Cancel
+          </button>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSubmit(instructions);
+            }}
+            className="btn primary"
+            type="button"
+          >
+            <IconPlus size={14} />
+            <span style={{ marginLeft: 6 }}>Add Codes</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ScriptRunner: React.FC = () => {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [output, setOutput] = useState<LogEntry[]>([]);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<AnalysisResults | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressInfo | null>(null);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [duration, setDuration] = useState<number>(0);
   const [selectedDataFile, setSelectedDataFile] = useState<string>("");
-  const [availableFiles, setAvailableFiles] = useState<any[]>([]);
+  const [availableFiles, setAvailableFiles] = useState<UploadedFile[]>([]);
   const [filesLoading, setFilesLoading] = useState<boolean>(true);
 
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>({
@@ -231,11 +386,6 @@ const ScriptRunner: React.FC = () => {
     currentDataFile: null,
   });
 
-  const [showRawLogs, setShowRawLogs] = useState<boolean>(false);
-  const [showAllCodes, setShowAllCodes] = useState<boolean>(false);
-  const [editingCodes, setEditingCodes] = useState<
-    Record<string | number, string[]>
-  >({});
   const [savingCodes, setSavingCodes] = useState<
     Record<string | number, boolean>
   >({});
@@ -249,13 +399,32 @@ const ScriptRunner: React.FC = () => {
     caseText: string;
     currentCodes: string;
   } | null>(null);
+  const [showAddMoreCodesModal, setShowAddMoreCodesModal] =
+    useState<boolean>(false);
+  const [addMoreCodesModalData, setAddMoreCodesModalData] = useState<{
+    caseId: string | number;
+    caseText: string;
+    currentCodes: string;
+  } | null>(null);
+  const [addingMoreCodes, setAddingMoreCodes] = useState<
+    Record<string | number, boolean>
+  >({});
   const [globalInstructions, setGlobalInstructions] = useState<string>("");
-  const [bulkRegenerating, setBulkRegenerating] = useState<boolean>(false);
-  const [bulkProgress, setBulkProgress] = useState<BulkProgress>(null);
   const [model, setModel] = useState<string>("gemini-2.0-flash");
   const [selectedInstructionPills, setSelectedInstructionPills] = useState<
     string[]
   >([]);
+
+  // Search, filter, and sort state
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [filterRegeneratedOnly, setFilterRegeneratedOnly] =
+    useState<boolean>(false);
+  const [sortBy, setSortBy] = useState<"time" | "caseId" | "codeCount">("time");
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [exportFormat, setExportFormat] = useState<"json" | "csv" | "html">(
     "json"
@@ -266,26 +435,357 @@ const ScriptRunner: React.FC = () => {
   const intervalRef = useRef<number | null>(null);
   const globalTextRef = useRef<HTMLTextAreaElement | null>(null);
   const pillsOverlayRef = useRef<HTMLDivElement | null>(null);
+  const selectedDataFileRef = useRef<string>("");
   const [pillsOverlayHeight, setPillsOverlayHeight] = useState<number>(0);
 
+  const addOutput = useCallback(
+    (text: string, type: LogType = "output", timestamp?: string) => {
+      const entryTimestamp = timestamp ?? new Date().toLocaleTimeString();
+      setOutput((prev) => {
+        const next = [
+          ...prev,
+          {
+            text,
+            type,
+            timestamp: entryTimestamp,
+            id: Date.now() + Math.random(),
+          },
+        ];
+        return next.length > 1000 ? next.slice(-1000) : next;
+      });
+    },
+    []
+  );
+
+  const fetchResults = useCallback(async () => {
+    try {
+      const response = await fetch("/api/results/latest");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch results: ${response.status}`);
+      }
+      const data: AnalysisResults = await response.json();
+      setResults(data);
+    } catch (err) {
+      console.error("Failed to fetch latest results:", err);
+    }
+  }, []);
+
+  const loadAvailableFiles = useCallback(async () => {
+    try {
+      setFilesLoading(true);
+      const response = await fetch("/api/data-files");
+      if (!response.ok) {
+        throw new Error(`Failed to load data files: ${response.status}`);
+      }
+      const files: UploadedFile[] = await response.json();
+      setAvailableFiles(files);
+    } catch (err) {
+      console.error("Failed to load available files:", err);
+    } finally {
+      setFilesLoading(false);
+    }
+  }, []);
+
+  const loadExistingCodes = useCallback(
+    async (filename: string) => {
+      console.log(
+        "[P2 Load Codes] Starting to load existing codes for file:",
+        filename
+      );
+      try {
+        const url = `/api/data/${encodeURIComponent(filename)}/codes?limit=100`;
+        console.log("[P2 Load Codes] Fetching from URL:", url);
+        const response = await fetch(url);
+        console.log(
+          "[P2 Load Codes] Response status:",
+          response.status,
+          response.ok
+        );
+        const result = await response.json();
+        console.log("[P2 Load Codes] Response data:", result);
+        if (response.ok) {
+          console.log(
+            "[P2 Load Codes] Successfully loaded codes from API:",
+            result.cases?.length || 0,
+            "cases"
+          );
+          console.log("[P2 Load Codes] Statistics:", result.statistics);
+          const case31745873 = result.cases.find(
+            (c: any) => c.caseId === "31745873"
+          );
+          if (case31745873) {
+            console.log("DEBUG: Case 31745873 from API:", {
+              hasCaseText: !!case31745873.caseText,
+              caseTextLength: case31745873.caseText?.length || 0,
+              caseTextPreview: case31745873.caseText?.substring(0, 100) || "",
+            });
+          }
+          const existingCompletions: Completion[] = result.cases.map(
+            (case_: any) => ({
+              caseId: case_.caseId,
+              codesText: Array.isArray(case_.codes)
+                ? case_.codes
+                : typeof case_.codes === "string"
+                ? case_.codes
+                : [case_.codes],
+              timestamp: new Date(case_.timestamp),
+              caseText: case_.caseText || "",
+              isExisting: true,
+            })
+          );
+          console.log("DEBUG: Mapped completions:", existingCompletions.length);
+          const mapped31745873 = existingCompletions.find(
+            (c) => c.caseId === "31745873"
+          );
+          if (mapped31745873) {
+            console.log("DEBUG: Case 31745873 mapped:", {
+              hasCaseText: !!mapped31745873.caseText,
+              caseTextLength: mapped31745873.caseText?.length || 0,
+              caseTextPreview: mapped31745873.caseText?.substring(0, 100) || "",
+            });
+          }
+          console.log(
+            "[P2 Load Codes] Setting analysis status with completions:",
+            existingCompletions.length
+          );
+          setAnalysisStatus((prev) => ({
+            ...prev,
+            totalCases: result.statistics.totalCases,
+            processedCases: result.statistics.processedCases,
+            uniqueCodesCount: result.statistics.uniqueCodesCount,
+            recentCompletions: existingCompletions,
+            currentDataFile: filename,
+          }));
+          console.log("[P2 Load Codes] Analysis status updated");
+          addOutput(
+            `📂 Loaded ${result.statistics.processedCases} existing codes from ${filename}`,
+            "info"
+          );
+        } else {
+          console.error("[P2 Load Codes] API returned error:", result.error);
+          throw new Error(result.error || "Failed to load existing codes");
+        }
+      } catch (e: any) {
+        console.error("[P2 Load Codes] Error loading codes:", e);
+        addOutput(`❌ Failed to load existing codes: ${e.message}`, "error");
+      }
+    },
+    [addOutput]
+  );
+
+  const handleMessage = useCallback(
+    (event: MessageEvent<string>) => {
+      try {
+        const message = JSON.parse(event.data);
+        switch (message.type) {
+          case "progressUpdate": {
+            const progressData = message.data as any;
+            console.log(
+              "[P2 WebSocket] Progress update received for case:",
+              progressData.case_id
+            );
+            setAnalysisStatus((prev) => {
+              const newCompletion: Completion = {
+                caseId: progressData.case_id,
+                codesText: Array.isArray(progressData.codes)
+                  ? JSON.stringify(progressData.codes)
+                  : typeof progressData.codes === "string"
+                  ? progressData.codes
+                  : JSON.stringify([progressData.codes]),
+                timestamp: new Date(progressData.timestamp),
+                caseText:
+                  progressData.case_text ||
+                  (progressData.progress && progressData.progress.case_text) ||
+                  "",
+              };
+
+              const existingIndex = prev.recentCompletions.findIndex(
+                (completion) => completion.caseId === progressData.case_id
+              );
+
+              let updatedCompletions: Completion[];
+              if (existingIndex >= 0) {
+                updatedCompletions = [...prev.recentCompletions];
+                updatedCompletions[existingIndex] = newCompletion;
+              } else {
+                updatedCompletions = [newCompletion, ...prev.recentCompletions];
+              }
+              updatedCompletions = updatedCompletions.slice(0, 100);
+
+              return {
+                ...prev,
+                processedCases: progressData.progress.processed,
+                totalCases: progressData.progress.total,
+                uniqueCodesCount: progressData.progress.unique_codes,
+                currentCase: progressData.case_id,
+                recentCompletions: updatedCompletions,
+                apiCalls: prev.apiCalls + 1,
+              };
+            });
+            break;
+          }
+          case "phaseUpdate": {
+            const phaseData = message.data as any;
+            setAnalysisStatus((prev) => ({
+              ...prev,
+              phase: phaseData.phase,
+              totalCases: phaseData.details.total_cases || prev.totalCases,
+              processedCases:
+                phaseData.details.processed_cases || prev.processedCases,
+              uniqueCodesCount:
+                phaseData.details.unique_codes || prev.uniqueCodesCount,
+              currentDataFile:
+                phaseData.details.data_file || prev.currentDataFile,
+            }));
+            break;
+          }
+          case "bulkProgressUpdate": {
+            const bulkData = message.data as any;
+            if (bulkData.case_id) {
+              addOutput(
+                `🔄 Regenerating case ${bulkData.case_id}... (${bulkData.current}/${bulkData.total})`,
+                "info"
+              );
+            } else if (
+              bulkData.current === bulkData.total &&
+              bulkData.total > 0
+            ) {
+              addOutput(
+                `✅ Bulk regeneration completed! Updated ${bulkData.total} cases.`,
+                "success"
+              );
+            }
+            break;
+          }
+          case "output": {
+            const level: LogType =
+              typeof message.level === "string" &&
+              ["info", "error", "success", "warning", "output"].includes(
+                message.level
+              )
+                ? (message.level as LogType)
+                : "info";
+            addOutput(message.text, level, message.timestamp);
+            break;
+          }
+          case "script_started": {
+            setIsRunning(true);
+            setStartTime(Date.now());
+            setAnalysisStatus((prev) => ({
+              ...prev,
+              phase: "Starting",
+              apiCalls: 0,
+              errors: [],
+              currentDataFile:
+                selectedDataFileRef.current || prev.currentDataFile,
+            }));
+            break;
+          }
+          case "script_stopped":
+          case "script_finished": {
+            setIsRunning(false);
+            setAnalysisStatus((prev) => ({
+              ...prev,
+              phase:
+                message.type === "script_finished" ? "Complete" : "Stopped",
+            }));
+            break;
+          }
+          case "script_error": {
+            setAnalysisStatus((prev) => ({
+              ...prev,
+              errors: [
+                ...prev.errors,
+                {
+                  message: message.data,
+                  timestamp: new Date(message.timestamp),
+                },
+              ].slice(-100),
+            }));
+            break;
+          }
+          default: {
+            if (message.data && typeof message.data === "string") {
+              addOutput(message.data, "info");
+            }
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    },
+    [addOutput]
+  );
+
   useEffect(() => {
+    selectedDataFileRef.current = selectedDataFile;
+  }, [selectedDataFile]);
+
+  const connectWebSocket = useCallback(() => {
+    const ws = new WebSocket("ws://localhost:9000");
+    wsRef.current = ws;
+
+    ws.onopen = () => {};
+    ws.onmessage = (event: MessageEvent<string>) => handleMessage(event);
+    ws.onclose = () => {
+      setTimeout(connectWebSocket, 3000);
+    };
+    ws.onerror = () => {};
+  }, [handleMessage]);
+
+  const checkScriptStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/script/status");
+      if (!response.ok) {
+        throw new Error(`Failed to check status: ${response.status}`);
+      }
+      const data = await response.json();
+      setIsRunning(Boolean(data.running));
+      if (data.running) {
+        fetchResults();
+      }
+    } catch (err) {
+      console.error("Failed to check script status:", err);
+    }
+  }, [fetchResults]);
+
+  // Persist and restore selected file
+  useEffect(() => {
+    if (selectedDataFile) {
+      console.log(
+        "[P2 Persist] Saving selected file to localStorage:",
+        selectedDataFile
+      );
+      localStorage.setItem("p2_selectedDataFile", selectedDataFile);
+    }
+  }, [selectedDataFile]);
+
+  useEffect(() => {
+    console.log("[P2 Init] Component initializing...");
     connectWebSocket();
     checkScriptStatus();
     loadAvailableFiles();
 
-    const interval = window.setInterval(() => {
-      if (isRunning && startTime) {
-        setDuration(Date.now() - startTime);
-      }
-    }, 1000);
-    intervalRef.current = interval;
+    // Restore previously selected file and load its existing codes
+    const savedFile = localStorage.getItem("p2_selectedDataFile");
+    console.log("[P2 Init] Retrieved saved file from localStorage:", savedFile);
+    if (savedFile) {
+      console.log(
+        "[P2 Init] Restoring file and loading existing codes:",
+        savedFile
+      );
+      setSelectedDataFile(savedFile);
+      loadExistingCodes(savedFile);
+    } else {
+      console.log("[P2 Init] No saved file found in localStorage");
+    }
 
     const handleSwitchToDataBrowser = (event: Event) => {
       const anyEvent = event as CustomEvent<{
         tab?: number;
         filename?: string;
       }>;
-      if (anyEvent.detail && anyEvent.detail.filename) {
+      if (anyEvent.detail?.filename) {
         window.dispatchEvent(
           new CustomEvent("switchTab", {
             detail: { tab: 0, filename: anyEvent.detail.filename },
@@ -304,185 +804,52 @@ const ScriptRunner: React.FC = () => {
     );
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
       window.removeEventListener(
         "switchToDataBrowser",
         handleSwitchToDataBrowser as EventListener
       );
-      if (wsRef.current) wsRef.current.close();
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [
+    connectWebSocket,
+    checkScriptStatus,
+    loadAvailableFiles,
+    loadExistingCodes,
+  ]);
+
+  useEffect(() => {
+    if (!isRunning || !startTime) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
+    intervalRef.current = window.setInterval(() => {
+      setDuration(Date.now() - startTime);
+    }, 1000);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   }, [isRunning, startTime]);
 
   useEffect(() => {
-    if (outputRef.current && showRawLogs) {
+    if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
-  }, [output, showRawLogs]);
-
-  const connectWebSocket = () => {
-    const ws = new WebSocket("ws://localhost:9000");
-    wsRef.current = ws;
-
-    ws.onopen = () => {};
-    ws.onmessage = (event: MessageEvent<string>) => handleMessage(event);
-    ws.onclose = () => {
-      setTimeout(connectWebSocket, 3000);
-    };
-    ws.onerror = () => {};
-  };
-
-  const handleMessage = (event: MessageEvent<string>) => {
-    try {
-      const message = JSON.parse(event.data);
-      switch (message.type) {
-        case "progressUpdate": {
-          const progressData = message.data as any;
-          setAnalysisStatus((prev) => {
-            const newCompletion: Completion = {
-              caseId: progressData.case_id,
-              codesText: Array.isArray(progressData.codes)
-                ? JSON.stringify(progressData.codes)
-                : typeof progressData.codes === "string"
-                ? progressData.codes
-                : JSON.stringify([progressData.codes]),
-              timestamp: new Date(progressData.timestamp),
-              caseText:
-                (progressData.progress && progressData.progress.case_text) ||
-                "",
-            };
-
-            const existingIndex = prev.recentCompletions.findIndex(
-              (completion) => completion.caseId === progressData.case_id
-            );
-
-            let updatedCompletions: Completion[];
-            if (existingIndex >= 0) {
-              updatedCompletions = [...prev.recentCompletions];
-              updatedCompletions[existingIndex] = newCompletion;
-            } else {
-              updatedCompletions = [newCompletion, ...prev.recentCompletions];
-            }
-            updatedCompletions = updatedCompletions.slice(0, 100);
-
-            return {
-              ...prev,
-              processedCases: progressData.progress.processed,
-              totalCases: progressData.progress.total,
-              uniqueCodesCount: progressData.progress.unique_codes,
-              currentCase: progressData.case_id,
-              recentCompletions: updatedCompletions,
-              apiCalls: prev.apiCalls + 1,
-            };
-          });
-          break;
-        }
-        case "phaseUpdate": {
-          const phaseData = message.data as any;
-          setAnalysisStatus((prev) => ({
-            ...prev,
-            phase: phaseData.phase,
-            totalCases: phaseData.details.total_cases || prev.totalCases,
-            processedCases:
-              phaseData.details.processed_cases || prev.processedCases,
-            uniqueCodesCount:
-              phaseData.details.unique_codes || prev.uniqueCodesCount,
-            currentDataFile:
-              phaseData.details.data_file || prev.currentDataFile,
-          }));
-          break;
-        }
-        case "bulkProgressUpdate": {
-          const bulkData = message.data as any;
-          setBulkProgress({
-            current: bulkData.current,
-            total: bulkData.total,
-            status: bulkData.status,
-            percentage: bulkData.percentage,
-            currentCaseId: bulkData.case_id,
-          });
-          if (bulkData.case_id) {
-            addOutput(
-              `🔄 Regenerating case ${bulkData.case_id}... (${bulkData.current}/${bulkData.total})`,
-              "info"
-            );
-          } else if (
-            bulkData.current === bulkData.total &&
-            bulkData.total > 0
-          ) {
-            addOutput(
-              `✅ Bulk regeneration completed! Updated ${bulkData.total} cases.`,
-              "success"
-            );
-          }
-          break;
-        }
-        case "output": {
-          setOutput((prev) =>
-            [
-              ...prev,
-              {
-                id: Date.now() + Math.random(),
-                text: message.text,
-                timestamp: message.timestamp,
-                type: message.level || "info",
-              },
-            ].slice(-1000)
-          );
-          break;
-        }
-        case "script_started": {
-          setIsRunning(true);
-          setStartTime(Date.now());
-          setAnalysisStatus((prev) => ({
-            ...prev,
-            phase: "Starting",
-            apiCalls: 0,
-            errors: [],
-            currentDataFile: selectedDataFile || prev.currentDataFile,
-          }));
-          break;
-        }
-        case "script_stopped":
-        case "script_finished": {
-          setIsRunning(false);
-          setAnalysisStatus((prev) => ({
-            ...prev,
-            phase: message.type === "script_finished" ? "Complete" : "Stopped",
-          }));
-          break;
-        }
-        case "script_error": {
-          setAnalysisStatus((prev) => ({
-            ...prev,
-            errors: [
-              ...prev.errors,
-              { message: message.data, timestamp: new Date(message.timestamp) },
-            ].slice(-100),
-          }));
-          break;
-        }
-        default: {
-          if (message.data && message.data.includes) {
-            setOutput((prev) =>
-              [
-                ...prev,
-                {
-                  id: Date.now() + Math.random(),
-                  text: message.data,
-                  timestamp: new Date().toLocaleTimeString(),
-                  type: "info",
-                },
-              ].slice(-1000)
-            );
-          }
-        }
-      }
-    } catch (err) {
-      // ignore parse errors
-    }
-  };
+  }, [output]);
 
   const hasAnyInstruction = () =>
     selectedInstructionPills.length > 0 || (globalInstructions || "").trim();
@@ -499,15 +866,6 @@ const ScriptRunner: React.FC = () => {
     );
   };
 
-  const checkScriptStatus = async () => {
-    try {
-      const response = await fetch("/api/script/status");
-      const data = await response.json();
-      setIsRunning(!!data.running);
-      if (data.running) fetchResults();
-    } catch {}
-  };
-
   const startScript = async () => {
     try {
       setError(null);
@@ -516,6 +874,7 @@ const ScriptRunner: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          dataFile: selectedDataFile,
           globalInstructions: effectiveInstructions,
           model,
         }),
@@ -556,14 +915,6 @@ const ScriptRunner: React.FC = () => {
     }
   };
 
-  const fetchResults = async () => {
-    try {
-      const response = await fetch("/api/results/latest");
-      const data = await response.json();
-      setResults(data);
-    } catch {}
-  };
-
   const formatDuration = (ms: number): string => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -592,18 +943,6 @@ const ScriptRunner: React.FC = () => {
     });
   };
 
-  const loadAvailableFiles = async () => {
-    try {
-      setFilesLoading(true);
-      const response = await fetch("/api/data-files");
-      const files = await response.json();
-      setAvailableFiles(files);
-    } catch {
-    } finally {
-      setFilesLoading(false);
-    }
-  };
-
   const handleDeleteSelectedFile = async () => {
     if (!selectedDataFile) return;
     const confirmDelete = window.confirm(
@@ -611,10 +950,13 @@ const ScriptRunner: React.FC = () => {
     );
     if (!confirmDelete) return;
     try {
-      const response = await fetch(`/api/data/${selectedDataFile}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      });
+      const response = await fetch(
+        `/api/data/${encodeURIComponent(selectedDataFile)}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
       const result = await response.json();
       if (response.ok) {
         addOutput(`🗑️ Deleted file ${selectedDataFile}`, "warning");
@@ -636,6 +978,77 @@ const ScriptRunner: React.FC = () => {
     }
   };
 
+  // Filter and sort completions
+  const getFilteredAndSortedCompletions = useCallback(() => {
+    let filtered = [...analysisStatus.recentCompletions];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((completion) => {
+        const caseIdMatch = String(completion.caseId)
+          .toLowerCase()
+          .includes(query);
+        const codesText = Array.isArray(completion.codesText)
+          ? completion.codesText.join(" ")
+          : completion.codesText;
+        const codesMatch = codesText.toLowerCase().includes(query);
+        const caseTextMatch =
+          completion.caseText?.toLowerCase().includes(query) || false;
+        return caseIdMatch || codesMatch || caseTextMatch;
+      });
+    }
+
+    // Apply regenerated filter
+    if (filterRegeneratedOnly) {
+      filtered = filtered.filter((c) => c.isRegenerated);
+    }
+
+    // Apply sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "time":
+          return (
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+        case "caseId":
+          return String(a.caseId).localeCompare(String(b.caseId));
+        case "codeCount": {
+          const aCount = Array.isArray(a.codesText) ? a.codesText.length : 1;
+          const bCount = Array.isArray(b.codesText) ? b.codesText.length : 1;
+          return bCount - aCount;
+        }
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [
+    analysisStatus.recentCompletions,
+    searchQuery,
+    filterRegeneratedOnly,
+    sortBy,
+  ]);
+
+  // Get paginated completions
+  const getPaginatedCompletions = useCallback(() => {
+    const filtered = getFilteredAndSortedCompletions();
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  }, [getFilteredAndSortedCompletions, currentPage, itemsPerPage]);
+
+  // Calculate total pages
+  const totalPages = Math.ceil(
+    getFilteredAndSortedCompletions().length / itemsPerPage
+  );
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterRegeneratedOnly, sortBy, itemsPerPage]);
+
   const handleDeleteAllCodes = async () => {
     const currentFile = analysisStatus.currentDataFile || selectedDataFile;
     if (!currentFile) {
@@ -650,10 +1063,13 @@ const ScriptRunner: React.FC = () => {
     );
     if (!confirmed) return;
     try {
-      const res = await fetch(`/api/data/${filename}/codes`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await fetch(
+        `/api/data/${encodeURIComponent(filename)}/codes`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to delete codes");
       addOutput(
@@ -672,133 +1088,6 @@ const ScriptRunner: React.FC = () => {
     }
   };
 
-  const startScriptWithFile = async (filename: string | null = null) => {
-    try {
-      setError(null);
-      const effectiveInstructions = buildEffectiveInstructions();
-      const response = await fetch("/api/script/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dataFile: filename,
-          globalInstructions: effectiveInstructions,
-          model,
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setIsRunning(true);
-        setStartTime(Date.now());
-        const methodUsed = hasAnyInstruction()
-          ? "with custom instructions"
-          : "using best practices";
-        addOutput(
-          `🔄 Starting Phase 2 analysis${
-            filename ? ` with file: ${filename}` : ""
-          } ${methodUsed}...`,
-          "info"
-        );
-      } else {
-        setError(data.error || "Failed to start script");
-        addOutput(`❌ Error: ${data.error}`, "error");
-      }
-    } catch (e: any) {
-      setError("Failed to start script: " + e.message);
-      addOutput(`❌ Error: ${e.message}`, "error");
-    }
-  };
-
-  const addOutput = (text: string, type: string = "output") => {
-    const timestamp = new Date().toLocaleTimeString();
-    setOutput((prev) => [
-      ...prev,
-      { text, type, timestamp, id: Date.now() + Math.random() },
-    ]);
-  };
-
-  const getEstimatedCompletion = () => {
-    if (analysisStatus.processedCases === 0 || duration === 0)
-      return "Calculating...";
-    const avgTimePerCase = duration / analysisStatus.processedCases;
-    const remainingCases =
-      analysisStatus.totalCases - analysisStatus.processedCases;
-    const estimatedMs = remainingCases * avgTimePerCase;
-    if (estimatedMs < 60000) return `${Math.round(estimatedMs / 1000)}s`;
-    if (estimatedMs < 3600000) return `${Math.round(estimatedMs / 60000)}m`;
-    return `${Math.round(estimatedMs / 3600000)}h`;
-  };
-
-  const getCodeTypeDistribution = () => {
-    const codeTypes: Record<string, number> = {};
-    let totalCodes = 0;
-    analysisStatus.recentCompletions.forEach((completion) => {
-      try {
-        const codes = JSON.parse(
-          typeof completion.codesText === "string"
-            ? completion.codesText.replace(/'/g, '"')
-            : JSON.stringify(completion.codesText)
-        );
-        if (Array.isArray(codes)) {
-          codes.forEach((code) => {
-            const type = String(code).split("_")[0] || "other";
-            codeTypes[type] = (codeTypes[type] || 0) + 1;
-            totalCodes++;
-          });
-        }
-      } catch {}
-    });
-    return Object.entries(codeTypes)
-      .sort(([, a], [, b]) => (b as number) - (a as number))
-      .slice(0, 5)
-      .map(([name, count]) => ({
-        name: name.charAt(0).toUpperCase() + name.slice(1),
-        count,
-        percentage: totalCodes > 0 ? (Number(count) / totalCodes) * 100 : 0,
-      }));
-  };
-
-  const getPhaseIcon = (phase: string) => {
-    switch (phase) {
-      case "Idle":
-        return "⚪";
-      case "Starting":
-        return "🔄";
-      case "Initializing":
-        return "🚀";
-      case "Processing Cases":
-        return "⚙️";
-      case "Complete":
-        return "✅";
-      case "Stopped":
-        return "⏹️";
-      default:
-        return "❓";
-    }
-  };
-
-  const getPhaseDescription = (phase: string) => {
-    switch (phase) {
-      case "Idle":
-        return "Ready to start analysis";
-      case "Starting":
-        return "Initializing analysis environment";
-      case "Initializing":
-        return "Loading data and preparing prompts";
-      case "Processing Cases":
-        return "Generating initial codes for each case";
-      case "Complete":
-        return "Analysis completed successfully";
-      case "Stopped":
-        return "Analysis was stopped by user";
-      default:
-        return "Unknown phase";
-    }
-  };
-
-  const handleCodeEdit = (caseId: string | number, newCodes: string[]) => {
-    setEditingCodes((prev) => ({ ...prev, [caseId]: newCodes }));
-  };
-
   const handleCodeSave = async (caseId: string | number, codes: string[]) => {
     try {
       setSavingCodes((prev) => ({ ...prev, [caseId]: true }));
@@ -813,26 +1102,26 @@ const ScriptRunner: React.FC = () => {
       const filename = currentFile.includes("/")
         ? currentFile.split("/").pop()!
         : currentFile;
-      const response = await fetch(`/api/data/${filename}/case/${caseId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codes }),
-      });
+      const response = await fetch(
+        `/api/data/${encodeURIComponent(filename)}/case/${encodeURIComponent(
+          caseId
+        )}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ codes }),
+        }
+      );
       const result = await response.json();
       if (response.ok) {
         setAnalysisStatus((prev) => ({
           ...prev,
           recentCompletions: prev.recentCompletions.map((completion) =>
             completion.caseId === caseId
-              ? { ...completion, codesText: JSON.stringify(codes) }
+              ? { ...completion, codesText: codes }
               : completion
           ),
         }));
-        setEditingCodes((prev) => {
-          const updated = { ...prev };
-          delete updated[caseId];
-          return updated;
-        });
         addOutput(
           `✅ Saved codes for case ${caseId} to ${filename}`,
           "success"
@@ -1023,11 +1312,12 @@ const ScriptRunner: React.FC = () => {
 
   const CodeGenerationItem: React.FC<CodeGenerationItemProps> = ({
     completion,
-    onEdit,
     onSave,
     onRegenerate,
+    onAddMoreCodes,
     isSaving,
     isRegenerating,
+    isAddingMoreCodes,
   }) => {
     const [editedCodes, setEditedCodes] = useState<string[]>([]);
     const [editingIndex, setEditingIndex] = useState<number>(-1);
@@ -1074,17 +1364,44 @@ const ScriptRunner: React.FC = () => {
     };
 
     const handleSaveEdit = () => {
-      if (editValue.trim()) {
+      if (editingIndex < 0) return;
+
+      const trimmedValue = editValue.trim();
+
+      if (trimmedValue) {
         const updatedCodes = [...editedCodes];
-        updatedCodes[editingIndex] = editValue.trim();
+        updatedCodes[editingIndex] = trimmedValue;
         setEditedCodes(updatedCodes);
         onSave(completion.caseId, updatedCodes);
+        setEditingIndex(-1);
+        setEditValue("");
+        return;
       }
+
+      const isNewEmptyCode = editedCodes[editingIndex] === "";
+
+      if (isNewEmptyCode) {
+        const updatedCodes = editedCodes.filter(
+          (_, idx) => idx !== editingIndex
+        );
+        setEditedCodes(
+          updatedCodes.length > 0 ? updatedCodes : ["No codes generated"]
+        );
+      }
+
       setEditingIndex(-1);
       setEditValue("");
     };
 
     const handleCancelEdit = () => {
+      if (editingIndex >= 0 && editedCodes[editingIndex] === "") {
+        const updatedCodes = editedCodes.filter(
+          (_, idx) => idx !== editingIndex
+        );
+        setEditedCodes(
+          updatedCodes.length > 0 ? updatedCodes : ["No codes generated"]
+        );
+      }
       setEditingIndex(-1);
       setEditValue("");
     };
@@ -1122,6 +1439,16 @@ const ScriptRunner: React.FC = () => {
       );
     };
 
+    const handleAddMoreCodes = () => {
+      onAddMoreCodes(
+        completion.caseId,
+        completion.caseText || "",
+        typeof completion.codesText === "string"
+          ? completion.codesText
+          : JSON.stringify(completion.codesText)
+      );
+    };
+
     return (
       <div className="code-generation-item">
         <div className="item-header">
@@ -1146,7 +1473,7 @@ const ScriptRunner: React.FC = () => {
               onClick={handleRegenerate}
               type="button"
               title="Regenerate codes with custom instructions"
-              disabled={isSaving || isRegenerating}
+              disabled={isSaving || isRegenerating || isAddingMoreCodes}
             >
               {isRegenerating ? (
                 <>
@@ -1161,11 +1488,30 @@ const ScriptRunner: React.FC = () => {
               )}
             </button>
             <button
+              className="add-more-codes-btn"
+              onClick={handleAddMoreCodes}
+              type="button"
+              title="Add more codes with AI assistance"
+              disabled={isSaving || isRegenerating || isAddingMoreCodes}
+            >
+              {isAddingMoreCodes ? (
+                <>
+                  <IconLoader size={14} />
+                  <span style={{ marginLeft: 6 }}>Adding...</span>
+                </>
+              ) : (
+                <>
+                  <IconPlus size={14} />
+                  <span style={{ marginLeft: 6 }}>Add More Codes</span>
+                </>
+              )}
+            </button>
+            <button
               className="add-code-btn"
               onClick={handleAddNewCode}
               type="button"
               title="Add new code"
-              disabled={isSaving || isRegenerating}
+              disabled={isSaving || isRegenerating || isAddingMoreCodes}
             >
               {isSaving ? (
                 <>
@@ -1182,25 +1528,31 @@ const ScriptRunner: React.FC = () => {
           </div>
         </div>
 
-        {completion.caseText && (
-          <div className="case-text-section">
-            <div className="case-text-header">
-              <h6>📄 Case Description</h6>
-              {shouldTruncate && (
-                <button
-                  className="expand-text-btn"
-                  onClick={() => setCaseTextExpanded(!caseTextExpanded)}
-                  type="button"
-                >
-                  {caseTextExpanded ? "Show Less" : "Show More"}
-                </button>
-              )}
-            </div>
-            <div className="case-text-content">
-              <p className="case-text">{displayText}</p>
-            </div>
+        <div className="case-text-section">
+          <div className="case-text-header">
+            <h6>Case Description</h6>
+            {shouldTruncate && (
+              <button
+                className="expand-text-btn"
+                onClick={() => setCaseTextExpanded(!caseTextExpanded)}
+                type="button"
+              >
+                {caseTextExpanded ? "Show Less" : "Show More"}
+              </button>
+            )}
           </div>
-        )}
+          <div className="case-text-content">
+            <p className="case-text">
+              {displayText || (
+                <span
+                  style={{ color: "var(--text-muted)", fontStyle: "italic" }}
+                >
+                  Case text not available
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
 
         <div className="codes-content">
           <div className="codes-display">
@@ -1277,44 +1629,6 @@ const ScriptRunner: React.FC = () => {
     );
   };
 
-  const loadExistingCodes = async (filename: string) => {
-    try {
-      const response = await fetch(`/api/data/${filename}/codes?limit=100`);
-      const result = await response.json();
-      if (response.ok) {
-        const existingCompletions: Completion[] = result.cases.map(
-          (case_: any) => ({
-            caseId: case_.caseId,
-            codesText: Array.isArray(case_.codes)
-              ? case_.codes
-              : typeof case_.codes === "string"
-              ? case_.codes
-              : [case_.codes],
-            timestamp: new Date(case_.timestamp),
-            caseText: case_.caseText || "",
-            isExisting: true,
-          })
-        );
-        setAnalysisStatus((prev) => ({
-          ...prev,
-          totalCases: result.statistics.totalCases,
-          processedCases: result.statistics.processedCases,
-          uniqueCodesCount: result.statistics.uniqueCodesCount,
-          recentCompletions: existingCompletions,
-          currentDataFile: filename,
-        }));
-        addOutput(
-          `📂 Loaded ${result.statistics.processedCases} existing codes from ${filename}`,
-          "info"
-        );
-      } else {
-        throw new Error(result.error || "Failed to load existing codes");
-      }
-    } catch (e: any) {
-      addOutput(`❌ Failed to load existing codes: ${e.message}`, "error");
-    }
-  };
-
   const handleRegenerateRequest = (
     caseId: string | number,
     caseText: string,
@@ -1326,7 +1640,7 @@ const ScriptRunner: React.FC = () => {
 
   const handleRegenerateSubmit = async (instructions: string) => {
     if (!regenerateModalData) return;
-    const { caseId, caseText } = regenerateModalData;
+    const { caseId } = regenerateModalData;
     try {
       setRegeneratingCodes((prev) => ({ ...prev, [caseId]: true }));
       setShowRegenerateModal(false);
@@ -1338,7 +1652,9 @@ const ScriptRunner: React.FC = () => {
         : currentFile;
       addOutput(`🔄 Regenerating codes for case ${caseId}...`, "info");
       const response = await fetch(
-        `/api/data/${filename}/case/${caseId}/regenerate`,
+        `/api/data/${encodeURIComponent(filename)}/case/${encodeURIComponent(
+          caseId
+        )}/regenerate`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1356,7 +1672,7 @@ const ScriptRunner: React.FC = () => {
             completion.caseId === caseId
               ? {
                   ...completion,
-                  codesText: JSON.stringify(result.codes),
+                  codesText: result.codes,
                   timestamp: new Date(),
                   isRegenerated: true,
                 }
@@ -1393,64 +1709,84 @@ const ScriptRunner: React.FC = () => {
     setRegenerateModalData(null);
   };
 
-  const handleExampleClick = (exampleText: string) => {
-    const cleanExample = exampleText.replace(/"/g, "");
-    if (globalInstructions.trim()) {
-      setGlobalInstructions(
-        (prev) =>
-          prev +
-          (prev.endsWith(".") || prev.endsWith(",") ? " " : ". ") +
-          cleanExample
+  const handleAddMoreCodesRequest = (
+    caseId: string | number,
+    caseText: string,
+    currentCodes: string
+  ) => {
+    setAddMoreCodesModalData({ caseId, caseText, currentCodes });
+    setShowAddMoreCodesModal(true);
+  };
+
+  const handleAddMoreCodesSubmit = async (instructions: string) => {
+    if (!addMoreCodesModalData) return;
+    const { caseId } = addMoreCodesModalData;
+    try {
+      setAddingMoreCodes((prev) => ({ ...prev, [caseId]: true }));
+      setShowAddMoreCodesModal(false);
+      const currentFile = analysisStatus.currentDataFile || selectedDataFile;
+      if (!currentFile)
+        throw new Error("No data file available for adding more codes");
+      const filename = currentFile.includes("/")
+        ? currentFile.split("/").pop()!
+        : currentFile;
+      addOutput(`✨ Adding more codes for case ${caseId}...`, "info");
+      const response = await fetch(
+        `/api/data/${encodeURIComponent(filename)}/case/${encodeURIComponent(
+          caseId
+        )}/add-codes`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instructions: instructions.trim(),
+            model,
+          }),
+        }
       );
-    } else {
-      setGlobalInstructions(cleanExample);
+      const result = await response.json();
+      if (response.ok) {
+        setAnalysisStatus((prev) => ({
+          ...prev,
+          recentCompletions: prev.recentCompletions.map((completion) =>
+            completion.caseId === caseId
+              ? {
+                  ...completion,
+                  codesText: result.codes,
+                  timestamp: new Date(),
+                  isRegenerated: true,
+                }
+              : completion
+          ),
+        }));
+        const methodUsed = instructions.trim()
+          ? `with custom instructions using model: ${model}`
+          : `using best practices with model: ${model}`;
+        addOutput(
+          `✅ Successfully added ${result.addedCount} new codes for case ${caseId} ${methodUsed}`,
+          "success"
+        );
+      } else {
+        throw new Error(result.error || "Failed to add more codes");
+      }
+    } catch (e: any) {
+      addOutput(
+        `❌ Failed to add more codes for case ${caseId}: ${e.message}`,
+        "error"
+      );
+    } finally {
+      setAddingMoreCodes((prev) => {
+        const updated = { ...prev } as Record<string | number, boolean>;
+        delete updated[caseId];
+        return updated;
+      });
+      setAddMoreCodesModalData(null);
     }
   };
 
-  const handleBulkRegenerate = async () => {
-    if (!hasAnyInstruction()) {
-      addOutput(
-        "❌ Please enter instructions before bulk regenerating codes",
-        "error"
-      );
-      return;
-    }
-    const currentFile = analysisStatus.currentDataFile || selectedDataFile;
-    if (!currentFile) {
-      addOutput("❌ No data file selected for bulk regeneration", "error");
-      return;
-    }
-    const filename = currentFile.includes("/")
-      ? currentFile.split("/").pop()!
-      : currentFile;
-    try {
-      setBulkRegenerating(true);
-      setBulkProgress({ current: 0, total: 0, status: "Starting..." });
-      addOutput(
-        `🔄 Starting bulk regeneration of existing codes with instructions: "${buildEffectiveInstructions()}"`,
-        "info"
-      );
-      const response = await fetch(`/api/data/${filename}/bulk-regenerate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instructions: buildEffectiveInstructions() }),
-      });
-      const result = await response.json();
-      if (response.ok) {
-        addOutput(
-          `✅ Bulk regeneration completed successfully. Updated ${result.updated_cases} cases.`,
-          "success"
-        );
-        if (selectedDataFile) loadExistingCodes(selectedDataFile);
-      } else {
-        throw new Error(result.error || "Failed to start bulk regeneration");
-      }
-    } catch (e: any) {
-      addOutput(`❌ Failed to bulk regenerate codes: ${e.message}`, "error");
-    } finally {
-      setBulkRegenerating(false);
-      setBulkProgress(null);
-    }
+  const handleAddMoreCodesCancel = () => {
+    setShowAddMoreCodesModal(false);
+    setAddMoreCodesModalData(null);
   };
 
   const handleGlobalKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1494,8 +1830,19 @@ const ScriptRunner: React.FC = () => {
           disabled={isRunning}
           className="btn primary"
         >
-          {isRunning ? "Running..." : "Start analysis"}
+          {isRunning
+            ? "Running..."
+            : analysisStatus.processedCases > 0
+            ? "Continue with the analysis"
+            : "Start analysis"}
         </button>
+        {!isRunning &&
+          analysisStatus.processedCases > 0 &&
+          analysisStatus.totalCases > 0 && (
+            <span className="badge info" style={{ marginLeft: 8 }}>
+              {analysisStatus.processedCases}/{analysisStatus.totalCases}
+            </span>
+          )}
         <button
           onClick={stopScript}
           disabled={!isRunning}
@@ -1522,6 +1869,13 @@ const ScriptRunner: React.FC = () => {
             <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
             <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
             <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            <option value="claude-sonnet-4-5-20250929">
+              Claude Sonnet 4.5
+            </option>
+            <option value="claude-3-5-sonnet-20241022">
+              Claude 3.5 Sonnet
+            </option>
+            <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
             <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
             <option value="gpt-5-mini-2025-08-07">gpt-5-mini-2025-08-07</option>
             <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07</option>
@@ -1583,10 +1937,21 @@ const ScriptRunner: React.FC = () => {
                   value={selectedDataFile}
                   onChange={(e) => {
                     const filename = e.target.value;
+                    console.log(
+                      "[P2 File Select] User selected file:",
+                      filename
+                    );
                     setSelectedDataFile(filename);
                     if (filename) {
+                      console.log(
+                        "[P2 File Select] Loading codes for selected file:",
+                        filename
+                      );
                       loadExistingCodes(filename);
                     } else {
+                      console.log(
+                        "[P2 File Select] No file selected, clearing status"
+                      );
                       setAnalysisStatus((prev) => ({
                         ...prev,
                         totalCases: 0,
@@ -1797,7 +2162,12 @@ const ScriptRunner: React.FC = () => {
                 <h4>
                   Generated codes{" "}
                   {analysisStatus.recentCompletions.length > 0
-                    ? `(${analysisStatus.recentCompletions.length})`
+                    ? `(${getFilteredAndSortedCompletions().length}${
+                        getFilteredAndSortedCompletions().length !==
+                        analysisStatus.recentCompletions.length
+                          ? ` of ${analysisStatus.recentCompletions.length}`
+                          : ""
+                      })`
                     : ""}
                 </h4>
                 <div className="codes-actions">
@@ -1818,36 +2188,351 @@ const ScriptRunner: React.FC = () => {
                 </div>
               </div>
 
+              {/* Search, Filter, and Sort Controls */}
+              <div
+                className="codes-controls"
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  alignItems: "center",
+                  padding: "12px 16px",
+                  backgroundColor: "rgba(255, 255, 255, 0.03)",
+                  borderRadius: "8px",
+                  marginBottom: "16px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ flex: "1 1 300px", minWidth: "200px" }}>
+                  <input
+                    type="text"
+                    placeholder="Search by case ID, codes, or text..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      backgroundColor: "rgba(255, 255, 255, 0.05)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      borderRadius: "6px",
+                      color: "#fff",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={filterRegeneratedOnly}
+                    onChange={(e) => setFilterRegeneratedOnly(e.target.checked)}
+                    style={{ cursor: "pointer" }}
+                  />
+                  <span>🔄 Regenerated only</span>
+                </label>
+
+                <select
+                  value={sortBy}
+                  onChange={(e) =>
+                    setSortBy(e.target.value as "time" | "caseId" | "codeCount")
+                  }
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "rgba(255, 255, 255, 0.05)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    borderRadius: "6px",
+                    color: "#fff",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    outline: "none",
+                  }}
+                >
+                  <option value="time">Sort by: Time (newest)</option>
+                  <option value="caseId">Sort by: Case ID</option>
+                  <option value="codeCount">Sort by: Code count</option>
+                </select>
+
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "rgba(255, 255, 255, 0.05)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    borderRadius: "6px",
+                    color: "#fff",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    outline: "none",
+                  }}
+                >
+                  <option value={10}>Show: 10</option>
+                  <option value={25}>Show: 25</option>
+                  <option value={50}>Show: 50</option>
+                  <option value={100}>Show: 100</option>
+                  <option value={999999}>Show: All</option>
+                </select>
+
+                {(searchQuery || filterRegeneratedOnly) && (
+                  <button
+                    className="btn subtle"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setFilterRegeneratedOnly(false);
+                    }}
+                    style={{
+                      padding: "6px 12px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+
               <div className="codes-list">
-                {analysisStatus.recentCompletions
-                  .slice(0, 10)
-                  .map((completion) => (
+                {getFilteredAndSortedCompletions().length === 0 ? (
+                  <div
+                    style={{
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: "rgba(255, 255, 255, 0.5)",
+                      fontSize: "14px",
+                    }}
+                  >
+                    No cases match your search or filters.
+                  </div>
+                ) : (
+                  getPaginatedCompletions().map((completion) => (
                     <CodeGenerationItem
                       key={completion.caseId}
                       completion={completion}
-                      onEdit={handleCodeEdit}
                       onSave={handleCodeSave}
                       onRegenerate={handleRegenerateRequest}
+                      onAddMoreCodes={handleAddMoreCodesRequest}
                       isSaving={!!savingCodes[completion.caseId]}
                       isRegenerating={!!regeneratingCodes[completion.caseId]}
+                      isAddingMoreCodes={!!addingMoreCodes[completion.caseId]}
                     />
-                  ))}
+                  ))
+                )}
               </div>
 
-              {analysisStatus.recentCompletions.length > 10 && (
-                <div className="more-codes-indicator">
-                  <span>
-                    + {analysisStatus.recentCompletions.length - 10} more
-                    completed cases
-                  </span>
-                  <button
-                    className="view-all-btn"
-                    onClick={() => setShowAllCodes(true)}
+              {/* Pagination Controls */}
+              {getFilteredAndSortedCompletions().length > 0 &&
+                totalPages > 1 && (
+                  <div
+                    className="pagination-controls"
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "16px",
+                      backgroundColor: "rgba(255, 255, 255, 0.03)",
+                      borderRadius: "8px",
+                      marginTop: "16px",
+                      flexWrap: "wrap",
+                      gap: "12px",
+                    }}
                   >
-                    View All Generated Codes
-                  </button>
-                </div>
-              )}
+                    <div
+                      style={{
+                        color: "rgba(255, 255, 255, 0.7)",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+                      {Math.min(
+                        currentPage * itemsPerPage,
+                        getFilteredAndSortedCompletions().length
+                      )}{" "}
+                      of {getFilteredAndSortedCompletions().length} cases
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        alignItems: "center",
+                      }}
+                    >
+                      <button
+                        className="btn subtle"
+                        onClick={() =>
+                          setCurrentPage((prev) => Math.max(1, prev - 1))
+                        }
+                        disabled={currentPage === 1}
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: "14px",
+                          opacity: currentPage === 1 ? 0.5 : 1,
+                          cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        ← Previous
+                      </button>
+
+                      {/* Page numbers */}
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "4px",
+                          alignItems: "center",
+                        }}
+                      >
+                        {(() => {
+                          const pages: React.ReactNode[] = [];
+                          const maxPagesToShow = 5;
+                          let startPage = Math.max(
+                            1,
+                            currentPage - Math.floor(maxPagesToShow / 2)
+                          );
+                          let endPage = Math.min(
+                            totalPages,
+                            startPage + maxPagesToShow - 1
+                          );
+
+                          if (endPage - startPage < maxPagesToShow - 1) {
+                            startPage = Math.max(
+                              1,
+                              endPage - maxPagesToShow + 1
+                            );
+                          }
+
+                          if (startPage > 1) {
+                            pages.push(
+                              <button
+                                key={1}
+                                className="btn subtle"
+                                onClick={() => setCurrentPage(1)}
+                                style={{
+                                  padding: "6px 12px",
+                                  fontSize: "14px",
+                                  minWidth: "40px",
+                                }}
+                              >
+                                1
+                              </button>
+                            );
+                            if (startPage > 2) {
+                              pages.push(
+                                <span
+                                  key="ellipsis-start"
+                                  style={{
+                                    padding: "6px 8px",
+                                    color: "rgba(255, 255, 255, 0.5)",
+                                  }}
+                                >
+                                  ...
+                                </span>
+                              );
+                            }
+                          }
+
+                          for (let i = startPage; i <= endPage; i++) {
+                            pages.push(
+                              <button
+                                key={i}
+                                className={`btn ${
+                                  i === currentPage ? "primary" : "subtle"
+                                }`}
+                                onClick={() => setCurrentPage(i)}
+                                style={{
+                                  padding: "6px 12px",
+                                  fontSize: "14px",
+                                  minWidth: "40px",
+                                }}
+                              >
+                                {i}
+                              </button>
+                            );
+                          }
+
+                          if (endPage < totalPages) {
+                            if (endPage < totalPages - 1) {
+                              pages.push(
+                                <span
+                                  key="ellipsis-end"
+                                  style={{
+                                    padding: "6px 8px",
+                                    color: "rgba(255, 255, 255, 0.5)",
+                                  }}
+                                >
+                                  ...
+                                </span>
+                              );
+                            }
+                            pages.push(
+                              <button
+                                key={totalPages}
+                                className="btn subtle"
+                                onClick={() => setCurrentPage(totalPages)}
+                                style={{
+                                  padding: "6px 12px",
+                                  fontSize: "14px",
+                                  minWidth: "40px",
+                                }}
+                              >
+                                {totalPages}
+                              </button>
+                            );
+                          }
+
+                          return pages;
+                        })()}
+                      </div>
+
+                      <button
+                        className="btn subtle"
+                        onClick={() =>
+                          setCurrentPage((prev) =>
+                            Math.min(totalPages, prev + 1)
+                          )
+                        }
+                        disabled={currentPage === totalPages}
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: "14px",
+                          opacity: currentPage === totalPages ? 0.5 : 1,
+                          cursor:
+                            currentPage === totalPages
+                              ? "not-allowed"
+                              : "pointer",
+                        }}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+              {/* Show summary when showing all items */}
+              {getFilteredAndSortedCompletions().length > 0 &&
+                totalPages <= 1 && (
+                  <div
+                    className="more-codes-indicator"
+                    style={{
+                      textAlign: "center",
+                      padding: "16px",
+                      color: "rgba(255, 255, 255, 0.6)",
+                      fontSize: "14px",
+                    }}
+                  >
+                    <span>
+                      Showing all {getFilteredAndSortedCompletions().length}{" "}
+                      cases
+                    </span>
+                  </div>
+                )}
             </div>
           )}
 
@@ -1860,13 +2545,23 @@ const ScriptRunner: React.FC = () => {
               currentCodes={regenerateModalData.currentCodes}
             />
           )}
+
+          {showAddMoreCodesModal && addMoreCodesModalData && (
+            <AddMoreCodesModal
+              isOpen={showAddMoreCodesModal}
+              onClose={handleAddMoreCodesCancel}
+              onSubmit={handleAddMoreCodesSubmit}
+              caseText={addMoreCodesModalData.caseText}
+              currentCodes={addMoreCodesModalData.currentCodes}
+            />
+          )}
         </div>
       </section>
 
       {results && (
         <div className="results-section">
           <h3>📊 Analysis Results</h3>
-          {results.progress && (
+          {results?.progress && (
             <div className="results-progress">
               <h4>Overall Progress</h4>
               <div className="progress-stats">
@@ -1890,17 +2585,20 @@ const ScriptRunner: React.FC = () => {
             </div>
           )}
 
-          {results.recentResults && results.recentResults.length > 0 && (
+          {results?.recentResults && results.recentResults.length > 0 && (
             <div className="recent-results">
               <h4>Recent Results (Last 10)</h4>
               <div className="results-list">
-                {results.recentResults.map((result: any, index: number) => (
-                  <div key={index} className="result-item">
-                    <div className="result-id">{result.id}</div>
-                    <div className="result-code">"{result.code}"</div>
-                    <div className="result-text">{result.text}</div>
-                  </div>
-                ))}
+                {results.recentResults.map(
+                  (result, index: number) =>
+                    result && (
+                      <div key={index} className="result-item">
+                        <div className="result-id">{result.id}</div>
+                        <div className="result-code">"{result.code}"</div>
+                        <div className="result-text">{result.text}</div>
+                      </div>
+                    )
+                )}
               </div>
             </div>
           )}

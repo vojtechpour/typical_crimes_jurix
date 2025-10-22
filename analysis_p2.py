@@ -176,12 +176,17 @@ Please prioritize these instructions while maintaining accuracy and consistency 
 def save_data_safely(data, filepath):
     """Save data with error handling"""
     try:
+        logger.info(f"💾 Saving data to: {filepath}")
+        logger.info(f"💾 File exists before save: {os.path.exists(filepath)}")
         with open(filepath, 'w', encoding='utf8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        logger.debug("💾 Data saved successfully")
+        logger.info(f"💾 Data saved successfully to {filepath}")
+        logger.info(f"💾 File size after save: {os.path.getsize(filepath)} bytes")
         return True
     except Exception as e:
-        logger.error(f"❌ Error saving data: {e}")
+        logger.error(f"❌ Error saving data to {filepath}: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         return False
 
 
@@ -391,8 +396,29 @@ for id_slt, data_point in data.items():
                     candidate_codes.append(str(init_code))
                 
                 # Save immediately after each case
+                logger.info(f"💾 Attempting to save case {id_slt} to file: {DATA_FILE}")
+                
+                # CRITICAL FIX: Re-read the file to get latest data before saving
+                # This prevents overwriting saves from other running instances or interrupted runs
+                try:
+                    logger.info(f"🔄 Re-reading file to merge with latest data before save...")
+                    with open(DATA_FILE, 'r', encoding='utf8') as f:
+                        latest_data = json.load(f)
+                    # Merge our new data with the latest data from file
+                    # This ensures we don't lose any codes saved by other processes
+                    for case_id, case_data in latest_data.items():
+                        if case_id in data:
+                            # Preserve existing codes from file if they exist
+                            if OUTPUT_FIELD in case_data and OUTPUT_FIELD not in data[case_id]:
+                                data[case_id][OUTPUT_FIELD] = case_data[OUTPUT_FIELD]
+                                logger.info(f"🔄 Preserved existing code for case {case_id} from file")
+                    logger.info(f"🔄 Merged latest data from file")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not re-read file for merging: {e}, proceeding with save anyway")
+                
                 if save_data_safely(data, DATA_FILE):
-                    logger.info(f"✅ Case {id_slt} processed and saved: '{init_code[:50] if isinstance(init_code, str) else str(init_code)[:50]}{'...' if len(str(init_code)) > 50 else ''}'")
+                    logger.info(f"✅ Case {id_slt} processed and saved to {DATA_FILE}: '{init_code[:50] if isinstance(init_code, str) else str(init_code)[:50]}{'...' if len(str(init_code)) > 50 else ''}'")
+                    logger.info(f"📊 Total cases in file now: {len([dp for dp in data.values() if OUTPUT_FIELD in dp])}/{len(data)}")
                     
                     # Log structured progress update for web interface
                     log_progress_update(id_slt, init_code, {
@@ -400,10 +426,10 @@ for id_slt, data_point in data.items():
                         "total": total_cases,
                         "percentage": ((processed_cases + total_processed_this_run + 1) / total_cases) * 100,
                         "unique_codes": len(set(str(code) for code in candidate_codes)),
-                        "case_text": data_point.get("plny_skutek_short", "")
+                        "case_text": data_point.get("plny_skutek_short") or data_point.get("plny_skutek") or ""
                     })
                 else:
-                    logger.error(f"❌ Failed to save case {id_slt}")
+                    logger.error(f"❌ FAILED to save case {id_slt} to file: {DATA_FILE}")
                 
                 total_processed_this_run += 1
                 logger.info(f"Progress: {processed_cases + total_processed_this_run}/{total_cases} ({((processed_cases + total_processed_this_run)/total_cases*100):.1f}%)")

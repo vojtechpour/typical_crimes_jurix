@@ -29,7 +29,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "server": "node server/server.js",
+    "server": "tsx server/server.ts",
     "dev": "concurrently \"npm run server\" \"PORT=3005 npm start\"",
     "install-concurrently": "npm install concurrently --save-dev"
   },
@@ -53,6 +53,7 @@
   },
   "proxy": "http://localhost:9000",
   "devDependencies": {
-    "concurrently": "^7.6.0"
+    "concurrently": "^7.6.0",
+    "tsx": "^4.15.7"
   }
 }
