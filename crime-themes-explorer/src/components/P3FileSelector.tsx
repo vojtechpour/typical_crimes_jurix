@@ -9,6 +9,11 @@ interface Props {
   selectedDataFile: string;
   setSelectedDataFile: (v: string) => void;
   isLoadingFiles?: boolean;
+  initialCodesStats?: {
+    processedCases: number;
+    totalCases: number;
+    uniqueCodesCount: number;
+  };
 }
 
 const P3FileSelector: React.FC<Props> = ({
@@ -16,6 +21,7 @@ const P3FileSelector: React.FC<Props> = ({
   selectedDataFile,
   setSelectedDataFile,
   isLoadingFiles = false,
+  initialCodesStats,
 }) => {
   return (
     <section className="card soft">
@@ -50,8 +56,37 @@ const P3FileSelector: React.FC<Props> = ({
                 ))}
               </select>
             </div>
-            {selectedDataFile && (
-              <span className="badge success">Ready: {selectedDataFile}</span>
+            {selectedDataFile && initialCodesStats && (
+              <div
+                className="row"
+                style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}
+              >
+                <span className="badge">
+                  <strong>{initialCodesStats.processedCases}</strong>
+                  <span className="muted">P1-coded</span>
+                </span>
+                <span className="badge">
+                  <strong>{initialCodesStats.totalCases}</strong>
+                  <span className="muted">Total cases</span>
+                </span>
+                <span className="badge">
+                  <strong>
+                    {initialCodesStats.totalCases > 0
+                      ? Math.round(
+                          (initialCodesStats.processedCases /
+                            initialCodesStats.totalCases) *
+                            100
+                        )
+                      : 0}
+                    %
+                  </strong>
+                  <span className="muted">Coverage</span>
+                </span>
+                <span className="badge">
+                  <strong>{initialCodesStats.uniqueCodesCount}</strong>
+                  <span className="muted">Unique codes</span>
+                </span>
+              </div>
             )}
           </div>
         )}

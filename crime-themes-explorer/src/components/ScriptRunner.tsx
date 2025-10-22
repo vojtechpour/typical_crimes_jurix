@@ -15,6 +15,7 @@ import {
   FiXCircle,
 } from "react-icons/fi";
 import type { IconBaseProps } from "react-icons";
+import Modal from "./ui/Modal";
 
 // Typed wrappers to satisfy TS JSX Element return types
 const IconCheck: React.FC<IconBaseProps> =
@@ -255,6 +256,10 @@ const ScriptRunner: React.FC = () => {
   const [selectedInstructionPills, setSelectedInstructionPills] = useState<
     string[]
   >([]);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+  const [exportFormat, setExportFormat] = useState<"json" | "csv" | "html">(
+    "json"
+  );
 
   const wsRef = useRef<WebSocket | null>(null);
   const outputRef = useRef<HTMLDivElement | null>(null);
@@ -871,6 +876,149 @@ const ScriptRunner: React.FC = () => {
       .replace(/:/g, "-")}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadGeneratedCodesCSV = () => {
+    const header = ["case_id", "codes", "timestamp", "case_text"];
+
+    const escapeCsv = (value: any): string => {
+      const text = value == null ? "" : String(value);
+      const needsQuoting = /[",\n]/.test(text);
+      const escaped = text.replace(/"/g, '""');
+      return needsQuoting ? `"${escaped}"` : escaped;
+    };
+
+    const rows = analysisStatus.recentCompletions.map((completion) => {
+      let codesArray: string[] = [];
+      try {
+        if (Array.isArray(completion.codesText)) {
+          codesArray = completion.codesText.map(String);
+        } else if (typeof completion.codesText === "string") {
+          try {
+            const parsed = JSON.parse(completion.codesText.replace(/'/g, '"'));
+            codesArray = Array.isArray(parsed)
+              ? parsed.map(String)
+              : [String(parsed)];
+          } catch {
+            codesArray = [completion.codesText];
+          }
+        } else {
+          codesArray = [String(completion.codesText)];
+        }
+      } catch {
+        codesArray = [String(completion.codesText)];
+      }
+
+      const joinedCodes = codesArray.join(" | ");
+      return [
+        escapeCsv(completion.caseId),
+        escapeCsv(joinedCodes),
+        escapeCsv(completion.timestamp?.toISOString?.() || ""),
+        escapeCsv(completion.caseText || ""),
+      ].join(",");
+    });
+
+    const csvContent = [header.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `generated_codes_${new Date()
+      .toISOString()
+      .slice(0, 19)
+      .replace(/:/g, "-")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadGeneratedCodesHTML = () => {
+    const rowsHtml = analysisStatus.recentCompletions
+      .map((completion) => {
+        let codesArray: string[] = [];
+        try {
+          if (Array.isArray(completion.codesText)) {
+            codesArray = completion.codesText.map(String);
+          } else if (typeof completion.codesText === "string") {
+            try {
+              const parsed = JSON.parse(
+                completion.codesText.replace(/'/g, '"')
+              );
+              codesArray = Array.isArray(parsed)
+                ? parsed.map(String)
+                : [String(parsed)];
+            } catch {
+              codesArray = [completion.codesText];
+            }
+          } else {
+            codesArray = [String(completion.codesText)];
+          }
+        } catch {
+          codesArray = [String(completion.codesText)];
+        }
+
+        const joinedCodes = codesArray.join(" | ");
+        const ts = completion.timestamp?.toISOString?.() || "";
+        const safe = (s: string) =>
+          (s || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+
+        return `<tr><td>${safe(String(completion.caseId))}</td><td>${safe(
+          joinedCodes
+        )}</td><td>${safe(ts)}</td><td>${safe(
+          completion.caseText || ""
+        )}</td></tr>`;
+      })
+      .join("");
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Generated Codes Report</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:24px;color:#222}
+    h1{margin:0 0 12px 0;font-size:20px}
+    .meta{color:#666;margin-bottom:16px}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ddd;padding:8px;vertical-align:top}
+    th{background:#f6f6f6;text-align:left}
+    tr:nth-child(even){background:#fafafa}
+    code{white-space:pre-wrap}
+  </style>
+  </head>
+  <body>
+    <h1>Generated Codes</h1>
+    <div class="meta">Exported at ${new Date().toISOString()}</div>
+    <table>
+      <thead><tr><th>Case ID</th><th>Codes</th><th>Timestamp</th><th>Case Text</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  </body>
+  </html>`;
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `generated_codes_${new Date()
+      .toISOString()
+      .slice(0, 19)
+      .replace(/:/g, "-")}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleOpenExport = () => setShowExportModal(true);
+  const handleConfirmExport = () => {
+    try {
+      if (exportFormat === "json") downloadGeneratedCodes();
+      else if (exportFormat === "csv") downloadGeneratedCodesCSV();
+      else downloadGeneratedCodesHTML();
+    } finally {
+      setShowExportModal(false);
+    }
   };
 
   const CodeGenerationItem: React.FC<CodeGenerationItemProps> = ({
@@ -1653,11 +1801,8 @@ const ScriptRunner: React.FC = () => {
                     : ""}
                 </h4>
                 <div className="codes-actions">
-                  <button
-                    className="btn subtle"
-                    onClick={downloadGeneratedCodes}
-                  >
-                    Export codes
+                  <button className="btn subtle" onClick={handleOpenExport}>
+                    Export
                   </button>
                   <button
                     className="btn danger"
@@ -1761,6 +1906,45 @@ const ScriptRunner: React.FC = () => {
           )}
         </div>
       )}
+
+      <Modal
+        isOpen={showExportModal}
+        title="Export Generated Codes"
+        onClose={() => setShowExportModal(false)}
+        actions={
+          <>
+            <button
+              className="btn ghost"
+              onClick={() => setShowExportModal(false)}
+            >
+              Cancel
+            </button>
+            <button className="btn primary" onClick={handleConfirmExport}>
+              Export
+            </button>
+          </>
+        }
+      >
+        <div className="export-options">
+          <div className="row" style={{ gap: 12, alignItems: "center" }}>
+            <label htmlFor="export-format">Format</label>
+            <select
+              id="export-format"
+              className="select"
+              value={exportFormat}
+              onChange={(e) => setExportFormat(e.target.value as any)}
+            >
+              <option value="json">JSON</option>
+              <option value="csv">CSV</option>
+              <option value="html">HTML</option>
+            </select>
+          </div>
+
+          <div className="muted" style={{ marginTop: 12 }}>
+            Exports the currently loaded generated codes from this session.
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

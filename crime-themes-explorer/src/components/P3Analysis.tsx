@@ -50,6 +50,11 @@ const P3Analysis: React.FC = () => {
   const [selectedDataFile, setSelectedDataFile] = useState<string>("");
   const [availableFiles, setAvailableFiles] = useState<any[]>([]);
   const [model, setModel] = useState<string>("gemini-2.0-flash");
+  const [initialCodesStats, setInitialCodesStats] = useState<{
+    processedCases: number;
+    totalCases: number;
+    uniqueCodesCount: number;
+  } | null>(null);
 
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>({
     phase: "Idle",
@@ -104,8 +109,10 @@ const P3Analysis: React.FC = () => {
   useEffect(() => {
     if (selectedDataFile) {
       loadExistingThemes();
+      loadInitialCodesStats(selectedDataFile);
     } else {
       setExistingThemes([]);
+      setInitialCodesStats(null);
     }
   }, [selectedDataFile]);
 
@@ -121,6 +128,109 @@ const P3Analysis: React.FC = () => {
       setTimeout(connectWebSocket, 3000);
     };
     ws.onerror = () => {};
+  };
+
+  const exportThemesCSV = () => {
+    const header = [
+      "case_id",
+      "candidate_theme",
+      "final_theme",
+      "initial_codes",
+      "case_text",
+      "timestamp",
+    ];
+    const escapeCsv = (value: any): string => {
+      const text = value == null ? "" : String(value);
+      const needsQuoting = /[",\n]/.test(text);
+      const escaped = text.replace(/"/g, '""');
+      return needsQuoting ? `"${escaped}"` : escaped;
+    };
+
+    const rows = existingThemes.map((t: any) => {
+      const initialCodes = Array.isArray(t.initialCodes)
+        ? t.initialCodes.join(" | ")
+        : String(t.initialCodes || "");
+      return [
+        escapeCsv(t.caseId),
+        escapeCsv(t.candidate_theme ?? t.theme ?? ""),
+        escapeCsv(t.theme ?? ""),
+        escapeCsv(initialCodes),
+        escapeCsv(t.caseText || ""),
+        escapeCsv(
+          (t.timestamp && (t.timestamp.toISOString?.() || t.timestamp)) || ""
+        ),
+      ].join(",");
+    });
+
+    const csvContent = [header.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `themes_${new Date()
+      .toISOString()
+      .slice(0, 19)
+      .replace(/:/g, "-")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportThemesHTML = () => {
+    const rowsHtml = existingThemes
+      .map((t: any) => {
+        const safe = (s: string) =>
+          (s || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        const initialCodes = Array.isArray(t.initialCodes)
+          ? t.initialCodes.join(" | ")
+          : String(t.initialCodes || "");
+        const ts =
+          (t.timestamp && (t.timestamp.toISOString?.() || t.timestamp)) || "";
+        return `<tr><td>${safe(String(t.caseId))}</td><td>${safe(
+          t.candidate_theme ?? t.theme ?? ""
+        )}</td><td>${safe(t.theme ?? "")}</td><td>${safe(
+          initialCodes
+        )}</td><td>${safe(t.caseText || "")}</td><td>${safe(ts)}</td></tr>`;
+      })
+      .join("");
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Themes Report</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:24px;color:#222}
+    h1{margin:0 0 12px 0;font-size:20px}
+    .meta{color:#666;margin-bottom:16px}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ddd;padding:8px;vertical-align:top}
+    th{background:#f6f6f6;text-align:left}
+    tr:nth-child(even){background:#fafafa}
+  </style>
+  </head>
+  <body>
+    <h1>Themes</h1>
+    <div class="meta">Exported at ${new Date().toISOString()}</div>
+    <table>
+      <thead><tr><th>Case ID</th><th>Candidate Theme</th><th>Final Theme</th><th>Initial Codes</th><th>Case Text</th><th>Timestamp</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  </body>
+  </html>`;
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `themes_${new Date()
+      .toISOString()
+      .slice(0, 19)
+      .replace(/:/g, "-")}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleMessage = (event: MessageEvent<string>) => {
@@ -413,6 +523,24 @@ const P3Analysis: React.FC = () => {
     } catch {}
   };
 
+  const loadInitialCodesStats = async (filename: string) => {
+    try {
+      const res = await fetch(`/api/data/${filename}/codes?limit=1`);
+      const data = await res.json();
+      if (res.ok && data.statistics) {
+        setInitialCodesStats({
+          processedCases: data.statistics.processedCases || 0,
+          totalCases: data.statistics.totalCases || 0,
+          uniqueCodesCount: data.statistics.uniqueCodesCount || 0,
+        });
+      } else {
+        setInitialCodesStats(null);
+      }
+    } catch {
+      setInitialCodesStats(null);
+    }
+  };
+
   const loadExistingThemes = async () => {
     if (!selectedDataFile) return;
     setLoadingExistingThemes(true);
@@ -563,6 +691,7 @@ const P3Analysis: React.FC = () => {
         selectedDataFile={selectedDataFile}
         setSelectedDataFile={setSelectedDataFile}
         isLoadingFiles={availableFiles.length === 0 && !selectedDataFile}
+        initialCodesStats={initialCodesStats || undefined}
       />
 
       {existingThemes.length > 0 && (
@@ -570,7 +699,22 @@ const P3Analysis: React.FC = () => {
           <div className="card-header row">
             <h3>Generated themes ({existingThemes.length})</h3>
             <span className="spacer" />
-            <button className="btn subtle">Export themes</button>
+            <div className="row" style={{ gap: 8 }}>
+              <button
+                className="btn subtle"
+                onClick={exportThemesCSV}
+                title="Export themes as CSV"
+              >
+                Export CSV
+              </button>
+              <button
+                className="btn subtle"
+                onClick={exportThemesHTML}
+                title="Export themes as HTML report"
+              >
+                Export HTML
+              </button>
+            </div>
           </div>
           <div className="card-body">
             <div className="codes-list">

@@ -14,12 +14,7 @@ interface Props {
 }
 
 const ProcessSummary: React.FC<Props> = ({ p2, p3, p3b, p4 }) => {
-  const phases = [
-    { key: "P2", status: p2?.status || "idle", progress: p2?.progress ?? 0 },
-    { key: "P3", status: p3?.status || "idle", progress: p3?.progress ?? 0 },
-    { key: "3b", status: p3b?.status || "idle", progress: p3b?.progress ?? 0 },
-    { key: "P4", status: p4?.status || "idle", progress: p4?.progress ?? 0 },
-  ];
+  const phases = [];
 
   return (
     <div className="row" aria-label="Process summary" title="Pipeline status">
