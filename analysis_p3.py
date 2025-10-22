@@ -7,10 +7,15 @@ import sys
 import argparse
 from gemini_api import get_analysis as gemini_get_analysis, response_to_json, COMPLETION_LEN, MODEL as GEMINI_MODEL
 import os
+import time
 try:
     from openai import OpenAI  # OpenAI Responses API
 except Exception:
     OpenAI = None
+try:
+    import anthropic  # Anthropic Claude API
+except Exception:
+    anthropic = None
 
 
 # Set up logging
@@ -120,9 +125,42 @@ def main():
 
     # Provider/model selection from environment (set by server like P2)
     PROVIDER = os.getenv('MODEL_PROVIDER', 'gemini').lower()
-    SELECTED_MODEL = (
-        os.getenv('OPENAI_MODEL') if PROVIDER == 'openai' else os.getenv('GEMINI_MODEL', GEMINI_MODEL)
-    )
+    # Read both envs to allow defensive correction if provider is out-of-sync with model
+    OPENAI_MODEL_ENV = os.getenv('OPENAI_MODEL')
+    GEMINI_MODEL_ENV = os.getenv('GEMINI_MODEL', GEMINI_MODEL)
+    ANTHROPIC_MODEL_ENV = os.getenv('ANTHROPIC_MODEL', 'claude-sonnet-4-20250514')
+
+    # Default selection based on declared provider
+    if PROVIDER == 'openai':
+        SELECTED_MODEL = OPENAI_MODEL_ENV
+    elif PROVIDER == 'claude':
+        SELECTED_MODEL = ANTHROPIC_MODEL_ENV
+    else:
+        SELECTED_MODEL = GEMINI_MODEL_ENV
+
+    # Defensive: infer provider from model prefix if mismatch (align behavior with P2)
+    try:
+        if OPENAI_MODEL_ENV and OPENAI_MODEL_ENV.startswith('gpt-') and PROVIDER != 'openai':
+            logger.warning(
+                f"Model '{OPENAI_MODEL_ENV}' implies OpenAI, but PROVIDER='{PROVIDER}'. Overriding to 'openai'."
+            )
+            PROVIDER = 'openai'
+            SELECTED_MODEL = OPENAI_MODEL_ENV
+        elif ANTHROPIC_MODEL_ENV and ANTHROPIC_MODEL_ENV.startswith('claude') and PROVIDER != 'claude':
+            logger.warning(
+                f"Model '{ANTHROPIC_MODEL_ENV}' implies Claude, but PROVIDER='{PROVIDER}'. Overriding to 'claude'."
+            )
+            PROVIDER = 'claude'
+            SELECTED_MODEL = ANTHROPIC_MODEL_ENV
+        elif GEMINI_MODEL_ENV and GEMINI_MODEL_ENV.startswith('gemini') and PROVIDER != 'gemini':
+            logger.warning(
+                f"Model '{GEMINI_MODEL_ENV}' implies Gemini, but PROVIDER='{PROVIDER}'. Overriding to 'gemini'."
+            )
+            PROVIDER = 'gemini'
+            SELECTED_MODEL = GEMINI_MODEL_ENV
+    except Exception:
+        # If any unexpected type/attr error occurs, keep original provider/model
+        pass
 
     logger.info("=== Starting Phase 3 Analysis (Candidate Themes) ===")
     logger.info(f"Using provider: {PROVIDER}")
@@ -220,6 +258,33 @@ def main():
                 def get_provider_analysis(sys_prompt, usr_prompt):
                     if PROVIDER == 'gemini':
                         return gemini_get_analysis(sys_prompt, usr_prompt)
+                    elif PROVIDER == 'claude':
+                        # Claude (Anthropic) path
+                        if anthropic is None:
+                            raise RuntimeError("Anthropic client not available")
+                        # Load API key
+                        with open('config.json') as cf:
+                            cfg = json.load(cf)
+                            anthropic_api_key = cfg.get('anthropic_api_key')
+                        if not anthropic_api_key:
+                            raise ValueError("anthropic_api_key not found in config.json")
+                        client = anthropic.Anthropic(api_key=anthropic_api_key)
+                        model_name = SELECTED_MODEL or 'claude-sonnet-4-20250514'
+                        response = client.messages.create(
+                            model=model_name,
+                            max_tokens=COMPLETION_LEN,
+                            temperature=1.0,
+                            system=sys_prompt,
+                            messages=[{"role": "user", "content": usr_prompt}]
+                        )
+                        content_text = response.content[0].text
+                        return {
+                            'system_prompt': sys_prompt,
+                            'user_prompt': usr_prompt,
+                            'params': {'model': model_name, 'temperature': 1.0},
+                            'choices': [{'message': {'content': content_text}}],
+                        }
+                    # OpenAI path
                     if OpenAI is None:
                         raise RuntimeError("OpenAI client not available")
                     # Load API key

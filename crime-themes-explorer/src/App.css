@@ -3744,6 +3744,24 @@
   color: #ff6f00;
 }
 
+/* P4 specific: use brand purple tones to match active containers */
+.p4-analysis .progress-stats-grid .stat-item {
+  background: linear-gradient(
+    135deg,
+    var(--brand-50) 0%,
+    var(--brand-100) 100%
+  );
+  border: 2px solid var(--brand-600);
+}
+
+.p4-analysis .progress-stats-grid .stat-number {
+  color: var(--brand-700);
+}
+
+.p4-analysis .progress-stats-grid .stat-label {
+  color: var(--brand-600);
+}
+
 /* P3 control buttons with orange theme */
 .p3-analysis .control-button.start-button:not(.disabled) {
   background: linear-gradient(135deg, #ff9800 0%, #ff6f00 100%);

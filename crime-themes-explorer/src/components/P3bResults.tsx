@@ -74,6 +74,145 @@ const P3bResults: React.FC<{ p3bStatus: P3bStatus }> = ({ p3bStatus }) => {
               >
                 📥 Download Final Themes
               </button>
+              <button
+                className="download-btn"
+                onClick={() => {
+                  const text = p3bStatus.finalThemes as string;
+                  // Try to parse as JSON array of objects with fields like {caseId, theme}
+                  let rows: Array<{
+                    caseId?: string | number;
+                    theme?: string;
+                  }> = [];
+                  try {
+                    const parsed = JSON.parse(text);
+                    if (Array.isArray(parsed)) {
+                      rows = parsed as any;
+                    }
+                  } catch {
+                    // Fallback: split lines as CSV-ish "caseId,theme"
+                    rows = text
+                      .split(/\r?\n/)
+                      .map((l) => l.trim())
+                      .filter((l) => l.length > 0)
+                      .map((l) => {
+                        const m = l.split(",");
+                        return { caseId: m[0], theme: m.slice(1).join(",") };
+                      });
+                  }
+
+                  const header = ["case_id", "final_theme"];
+                  const escapeCsv = (v: any) => {
+                    const s = v == null ? "" : String(v);
+                    const needs = /[",\n]/.test(s);
+                    const esc = s.replace(/"/g, '""');
+                    return needs ? `"${esc}"` : esc;
+                  };
+                  const csv = [
+                    header.join(","),
+                    ...rows.map((r) =>
+                      [
+                        escapeCsv(r.caseId ?? ""),
+                        escapeCsv(r.theme ?? ""),
+                      ].join(",")
+                    ),
+                  ].join("\n");
+
+                  const blob = new Blob([csv], {
+                    type: "text/csv;charset=utf-8",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `p3b_final_themes_${new Date()
+                    .toISOString()
+                    .slice(0, 19)
+                    .replace(/:/g, "-")}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                📄 Export CSV
+              </button>
+              <button
+                className="download-btn"
+                onClick={() => {
+                  const text = p3bStatus.finalThemes as string;
+                  let rows: Array<{
+                    caseId?: string | number;
+                    theme?: string;
+                  }> = [];
+                  try {
+                    const parsed = JSON.parse(text);
+                    if (Array.isArray(parsed)) {
+                      rows = parsed as any;
+                    }
+                  } catch {
+                    rows = text
+                      .split(/\r?\n/)
+                      .map((l) => l.trim())
+                      .filter((l) => l.length > 0)
+                      .map((l) => {
+                        const m = l.split(",");
+                        return { caseId: m[0], theme: m.slice(1).join(",") };
+                      });
+                  }
+
+                  const safe = (s: string) =>
+                    (s || "")
+                      .replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;");
+
+                  const rowsHtml = rows
+                    .map(
+                      (r) =>
+                        `<tr><td>${safe(String(r.caseId ?? ""))}</td><td>${safe(
+                          String(r.theme ?? "")
+                        )}</td></tr>`
+                    )
+                    .join("");
+
+                  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>P3b Final Themes</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:24px;color:#222}
+    h1{margin:0 0 12px 0;font-size:20px}
+    .meta{color:#666;margin-bottom:16px}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ddd;padding:8px;vertical-align:top}
+    th{background:#f6f6f6;text-align:left}
+    tr:nth-child(even){background:#fafafa}
+  </style>
+  </head>
+  <body>
+    <h1>P3b Final Themes</h1>
+    <div class="meta">Exported at ${new Date().toISOString()}</div>
+    <table>
+      <thead><tr><th>Case ID</th><th>Final Theme</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  </body>
+  </html>`;
+
+                  const blob = new Blob([html], {
+                    type: "text/html;charset=utf-8",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `p3b_final_themes_${new Date()
+                    .toISOString()
+                    .slice(0, 19)
+                    .replace(/:/g, "-")}.html`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                🧾 Export HTML
+              </button>
             </div>
           </div>
         )}

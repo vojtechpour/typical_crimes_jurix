@@ -12,6 +12,10 @@ try:
     from openai import OpenAI  # OpenAI Responses API
 except Exception:
     OpenAI = None
+try:
+    import anthropic  # Anthropic Claude API
+except Exception:
+    anthropic = None
 
 
 def log_progress_update(case_id, codes, progress_info):
@@ -95,9 +99,12 @@ else:
 
 # Provider/model selection from environment (set by server)
 PROVIDER = os.getenv('MODEL_PROVIDER', 'gemini').lower()
-SELECTED_MODEL = (
-    os.getenv('OPENAI_MODEL') if PROVIDER == 'openai' else os.getenv('GEMINI_MODEL', GEMINI_MODEL)
-)
+if PROVIDER == 'openai':
+    SELECTED_MODEL = os.getenv('OPENAI_MODEL')
+elif PROVIDER == 'claude':
+    SELECTED_MODEL = os.getenv('ANTHROPIC_MODEL', 'claude-sonnet-4-20250514')
+else:  # gemini
+    SELECTED_MODEL = os.getenv('GEMINI_MODEL', GEMINI_MODEL)
 
 logger.info(f"Using data file: {DATA_FILE}")
 
@@ -279,6 +286,55 @@ for id_slt, data_point in data.items():
             def get_provider_analysis(sys_prompt, usr_prompt):
                 if PROVIDER == 'gemini':
                     return gemini_get_analysis(sys_prompt, usr_prompt)
+                elif PROVIDER == 'claude':
+                    # Claude (Anthropic) path
+                    if anthropic is None:
+                        raise RuntimeError("Anthropic client not available")
+                    # Load API key
+                    with open('config.json') as cf:
+                        cfg = json.load(cf)
+                        anthropic_api_key = cfg.get('anthropic_api_key')
+                    if not anthropic_api_key:
+                        raise ValueError("anthropic_api_key not found in config.json")
+                    client = anthropic.Anthropic(api_key=anthropic_api_key)
+                    model_name = SELECTED_MODEL or 'claude-sonnet-4-20250514'
+                    try:
+                        response = client.messages.create(
+                            model=model_name,
+                            max_tokens=COMPLETION_LEN,
+                            temperature=1.0,
+                            system=sys_prompt,
+                            messages=[{"role": "user", "content": usr_prompt}]
+                        )
+                        content_text = response.content[0].text
+                    except Exception as e:
+                        # Simple retry on rate limit
+                        err = str(e).lower()
+                        if "rate limit" in err or "quota" in err:
+                            time.sleep(60)
+                            response = client.messages.create(
+                                model=model_name,
+                                max_tokens=COMPLETION_LEN,
+                                temperature=1.0,
+                                system=sys_prompt,
+                                messages=[{"role": "user", "content": usr_prompt}]
+                            )
+                            content_text = response.content[0].text
+                        else:
+                            raise
+                    return {
+                        'system_prompt': sys_prompt,
+                        'user_prompt': usr_prompt,
+                        'params': {
+                            'model': model_name,
+                            'temperature': 1.0,
+                        },
+                        'choices': [{
+                            'message': {
+                                'content': content_text
+                            }
+                        }]
+                    }
                 # OpenAI (GPT-5) path
                 if OpenAI is None:
                     raise RuntimeError("OpenAI client not available")

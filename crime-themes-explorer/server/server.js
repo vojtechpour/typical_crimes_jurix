@@ -215,9 +215,18 @@ app.post("/api/script/execute", (req, res) => {
       if (model.startsWith("gpt-")) {
         provider = "openai";
         envVars.OPENAI_MODEL = model; // analysis script can read this if using OpenAI
+        delete envVars.GEMINI_MODEL; // Prevent conflicts
+        delete envVars.ANTHROPIC_MODEL;
+      } else if (model.startsWith("claude")) {
+        provider = "claude";
+        envVars.ANTHROPIC_MODEL = model; // analysis script can read this if using Claude
+        delete envVars.GEMINI_MODEL; // Prevent conflicts
+        delete envVars.OPENAI_MODEL;
       } else {
         provider = "gemini";
         envVars.GEMINI_MODEL = model; // analysis script will read GEMINI_MODEL
+        delete envVars.OPENAI_MODEL; // Prevent conflicts
+        delete envVars.ANTHROPIC_MODEL;
       }
     }
     envVars.MODEL_PROVIDER = provider; // tell analysis script which provider to use
@@ -789,9 +798,18 @@ app.post("/api/data/:filename/case/:caseId/regenerate", (req, res) => {
       if (model.startsWith("gpt-")) {
         provider = "openai";
         envVars.OPENAI_MODEL = model;
+        if (envVars.GEMINI_MODEL) delete envVars.GEMINI_MODEL;
+        if (envVars.ANTHROPIC_MODEL) delete envVars.ANTHROPIC_MODEL;
+      } else if (model.startsWith("claude")) {
+        provider = "claude";
+        envVars.ANTHROPIC_MODEL = model;
+        if (envVars.GEMINI_MODEL) delete envVars.GEMINI_MODEL;
+        if (envVars.OPENAI_MODEL) delete envVars.OPENAI_MODEL;
       } else {
         provider = "gemini";
         envVars.GEMINI_MODEL = model;
+        if (envVars.OPENAI_MODEL) delete envVars.OPENAI_MODEL;
+        if (envVars.ANTHROPIC_MODEL) delete envVars.ANTHROPIC_MODEL;
       }
     }
     envVars.MODEL_PROVIDER = provider;
@@ -1138,9 +1156,21 @@ app.post("/api/p3/execute", (req, res) => {
       if (model.startsWith("gpt-")) {
         provider = "openai";
         envVars.OPENAI_MODEL = model;
+        // ensure no conflicting Gemini or Claude model leaks into child env
+        if (envVars.GEMINI_MODEL) delete envVars.GEMINI_MODEL;
+        if (envVars.ANTHROPIC_MODEL) delete envVars.ANTHROPIC_MODEL;
+      } else if (model.startsWith("claude")) {
+        provider = "claude";
+        envVars.ANTHROPIC_MODEL = model;
+        // ensure no conflicting Gemini or OpenAI model leaks into child env
+        if (envVars.GEMINI_MODEL) delete envVars.GEMINI_MODEL;
+        if (envVars.OPENAI_MODEL) delete envVars.OPENAI_MODEL;
       } else {
         provider = "gemini";
         envVars.GEMINI_MODEL = model;
+        // ensure no conflicting OpenAI or Claude model leaks into child env
+        if (envVars.OPENAI_MODEL) delete envVars.OPENAI_MODEL;
+        if (envVars.ANTHROPIC_MODEL) delete envVars.ANTHROPIC_MODEL;
       }
     }
     envVars.MODEL_PROVIDER = provider;
@@ -1319,9 +1349,18 @@ function startP3bAnalysis(dataFile, model) {
       if (model.startsWith("gpt-")) {
         provider = "openai";
         envVars.OPENAI_MODEL = model;
+        if (envVars.GEMINI_MODEL) delete envVars.GEMINI_MODEL;
+        if (envVars.ANTHROPIC_MODEL) delete envVars.ANTHROPIC_MODEL;
+      } else if (model.startsWith("claude")) {
+        provider = "claude";
+        envVars.ANTHROPIC_MODEL = model;
+        if (envVars.GEMINI_MODEL) delete envVars.GEMINI_MODEL;
+        if (envVars.OPENAI_MODEL) delete envVars.OPENAI_MODEL;
       } else {
         provider = "gemini";
         envVars.GEMINI_MODEL = model;
+        if (envVars.OPENAI_MODEL) delete envVars.OPENAI_MODEL;
+        if (envVars.ANTHROPIC_MODEL) delete envVars.ANTHROPIC_MODEL;
       }
     }
     envVars.MODEL_PROVIDER = provider;
@@ -1430,8 +1469,38 @@ app.post("/api/p4/execute", (req, res) => {
   }
 
   try {
-    // analysis_p4.py reads its own inputs; no params required
+    const { dataFile, model, themesFile } = req.body || {};
+
     const pythonArgs = ["analysis_p4.py"]; // runs from repo root
+    if (dataFile) {
+      pythonArgs.push("--data-file", dataFile);
+    }
+    if (themesFile) {
+      pythonArgs.push("--themes-file", themesFile);
+    }
+
+    // Determine provider/model similar to P2/P3
+    let provider = "gemini";
+    const envVars = { ...process.env };
+    if (model && typeof model === "string") {
+      if (model.startsWith("gpt-")) {
+        provider = "openai";
+        envVars.OPENAI_MODEL = model;
+        if (envVars.GEMINI_MODEL) delete envVars.GEMINI_MODEL;
+        if (envVars.ANTHROPIC_MODEL) delete envVars.ANTHROPIC_MODEL;
+      } else if (model.startsWith("claude")) {
+        provider = "claude";
+        envVars.ANTHROPIC_MODEL = model;
+        if (envVars.GEMINI_MODEL) delete envVars.GEMINI_MODEL;
+        if (envVars.OPENAI_MODEL) delete envVars.OPENAI_MODEL;
+      } else {
+        provider = "gemini";
+        envVars.GEMINI_MODEL = model;
+        if (envVars.OPENAI_MODEL) delete envVars.OPENAI_MODEL;
+        if (envVars.ANTHROPIC_MODEL) delete envVars.ANTHROPIC_MODEL;
+      }
+    }
+    envVars.MODEL_PROVIDER = provider;
 
     // Inform clients
     broadcast({
@@ -1439,19 +1508,48 @@ app.post("/api/p4/execute", (req, res) => {
       timestamp: new Date().toISOString(),
     });
 
-    p4ScriptProcess = spawn("python3", pythonArgs, {
+    p4ScriptProcess = spawn(PYTHON_VENV, pythonArgs, {
       cwd: __dirname + "/../..",
+      env: envVars,
     });
 
     p4ScriptProcess.stdout.on("data", (data) => {
       const text = data.toString();
       const lines = text.split("\n").filter((l) => l.trim());
       lines.forEach((line) => {
-        broadcast({
-          type: "p4_output",
-          text: line,
-          timestamp: new Date().toLocaleTimeString(),
-        });
+        if (line.startsWith("P4_PROGRESS_UPDATE:")) {
+          try {
+            const progressData = JSON.parse(
+              line.substring("P4_PROGRESS_UPDATE:".length)
+            );
+            broadcast({
+              type: "p4ProgressUpdate",
+              data: progressData,
+              timestamp: new Date().toISOString(),
+            });
+          } catch (e) {
+            console.error("Error parsing P4 progress update:", e);
+          }
+        } else if (line.startsWith("P4_PHASE_UPDATE:")) {
+          try {
+            const phaseData = JSON.parse(
+              line.substring("P4_PHASE_UPDATE:".length)
+            );
+            broadcast({
+              type: "p4PhaseUpdate",
+              data: phaseData,
+              timestamp: new Date().toISOString(),
+            });
+          } catch (e) {
+            console.error("Error parsing P4 phase update:", e);
+          }
+        } else {
+          broadcast({
+            type: "p4_output",
+            text: line,
+            timestamp: new Date().toLocaleTimeString(),
+          });
+        }
       });
     });
 
