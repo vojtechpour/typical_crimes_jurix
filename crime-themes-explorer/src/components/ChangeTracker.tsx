@@ -1,6 +1,6 @@
 import React from "react";
 
-type Change = {
+export type Change = {
   id: string | number;
   type: string;
   description: string;

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import "./App.css";
 import "./design-system.css";
 import "./index.css";
@@ -9,7 +9,12 @@ import P3Analysis from "./components/P3Analysis"; // Phase 3/3b
 import P4AssignThemes from "./components/P4AssignThemes"; // Phase 4
 import ProcessSummary from "./components/ProcessSummary";
 
-const NAV: { key: string; label: string }[] = [
+type NavItem = {
+  key: "data" | "p2" | "p3" | "p4";
+  label: string;
+};
+
+const NAV: NavItem[] = [
   { key: "data", label: "Data & Theme Explorer" },
   { key: "p2", label: "Initial Codes (P2)" },
   { key: "p3", label: "Themes (P3/P3b)" },
@@ -17,12 +22,12 @@ const NAV: { key: string; label: string }[] = [
 ];
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<string>("data");
-  const [theme, setTheme] = useState<string>("auto");
+  const [currentTab, setCurrentTab] = useState<NavItem["key"]>("data");
+  const [theme, setTheme] = useState<"auto" | "dark" | "light">("auto");
   const [specificDataFile, setSpecificDataFile] = useState<string | null>(null);
 
   // optional: allow manual overrides on <html>
-  useMemo(() => {
+  useEffect(() => {
     const root = document.documentElement;
     root.removeAttribute("data-theme");
     if (theme === "dark") root.setAttribute("data-theme", "dark");
@@ -30,25 +35,22 @@ export default function App() {
   }, [theme]);
 
   // window events compatibility (existing behavior)
-  React.useEffect(() => {
-    const onSwitch = (e: Event) => {
+  useEffect(() => {
+    const onSwitch = (event: Event) => {
+      const customEvent = event as CustomEvent<{ filename?: string }>;
       setCurrentTab("data");
-      const detail = (e as CustomEvent<{ filename?: string }>).detail;
-      if (detail && detail.filename) {
-        setSpecificDataFile(detail.filename);
+      if (customEvent.detail?.filename) {
+        setSpecificDataFile(customEvent.detail.filename);
       }
     };
     const onClear = () => {
       setSpecificDataFile(null);
     };
-    window.addEventListener("switchToDataBrowser", onSwitch as EventListener);
-    window.addEventListener("clearSpecificFile", onClear as EventListener);
+    window.addEventListener("switchToDataBrowser", onSwitch);
+    window.addEventListener("clearSpecificFile", onClear);
     return () => {
-      window.removeEventListener(
-        "switchToDataBrowser",
-        onSwitch as EventListener
-      );
-      window.removeEventListener("clearSpecificFile", onClear as EventListener);
+      window.removeEventListener("switchToDataBrowser", onSwitch);
+      window.removeEventListener("clearSpecificFile", onClear);
     };
   }, []);
 
@@ -75,28 +77,6 @@ export default function App() {
             </button>
           ))}
         </nav>
-
-        <div className="nav-section" style={{ marginTop: "auto" }}>
-          Resources
-        </div>
-        <div className="nav-group">
-          <a
-            className="nav-item"
-            href="https://"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Documentation
-          </a>
-          <a
-            className="nav-item"
-            href="https://"
-            target="_blank"
-            rel="noreferrer"
-          >
-            API Reference
-          </a>
-        </div>
       </aside>
 
       {/* Header */}
@@ -113,7 +93,9 @@ export default function App() {
               id="theme"
               className="select"
               value={theme}
-              onChange={(e) => setTheme(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setTheme(e.target.value as "auto" | "dark" | "light")
+              }
             >
               <option value="auto">Auto</option>
               <option value="dark">Dark</option>

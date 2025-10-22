@@ -1,19 +1,45 @@
 import React, { useEffect, useRef, useState } from "react";
-import P3CaseItem from "./P3CaseItem";
+import P3CaseItem, { CaseThemeItem, ThemeField } from "./P3CaseItem";
 
-const P4AssignThemes = () => {
-  const [isRunning, setIsRunning] = useState(false);
-  const [output, setOutput] = useState([]);
-  const [error, setError] = useState(null);
-  const [duration, setDuration] = useState(0);
-  const [model, setModel] = useState("gemini-2.0-flash");
-  const [availableFiles, setAvailableFiles] = useState([]);
-  const [filesLoading, setFilesLoading] = useState(true);
-  const [selectedDataFile, setSelectedDataFile] = useState("");
-  const [existingThemes, setExistingThemes] = useState([]);
-  const [showAllThemes, setShowAllThemes] = useState(false);
-  const [expandedCases, setExpandedCases] = useState(new Set());
-  const [analysisStatus, setAnalysisStatus] = useState({
+type OutputLineType = "info" | "error" | "success" | "warning" | string;
+
+interface OutputLine {
+  id: number;
+  text: string;
+  type: OutputLineType;
+  timestamp: string;
+}
+
+interface DataFileOption {
+  name: string;
+  size?: number;
+  [key: string]: unknown;
+}
+
+interface AnalysisStatus {
+  phase: string;
+  totalCases: number;
+  processedCases: number;
+  uniqueThemesCount: number;
+  currentDataFile: string | null;
+  errors: string[];
+}
+
+const P4AssignThemes: React.FC = () => {
+  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [output, setOutput] = useState<OutputLine[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [duration, setDuration] = useState<number>(0);
+  const [model, setModel] = useState<string>("gemini-2.0-flash");
+  const [availableFiles, setAvailableFiles] = useState<DataFileOption[]>([]);
+  const [filesLoading, setFilesLoading] = useState<boolean>(true);
+  const [selectedDataFile, setSelectedDataFile] = useState<string>("");
+  const [existingThemes, setExistingThemes] = useState<CaseThemeItem[]>([]);
+  const [showAllThemes, setShowAllThemes] = useState<boolean>(false);
+  const [expandedCases, setExpandedCases] = useState<Set<string | number>>(
+    new Set()
+  );
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>({
     phase: "Idle",
     totalCases: 0,
     processedCases: 0,
@@ -21,22 +47,24 @@ const P4AssignThemes = () => {
     currentDataFile: null,
     errors: [],
   });
-  const [themesFile, setThemesFile] = useState("kradeze_pripady_3b.json");
+  const [themesFile, setThemesFile] = useState<string>(
+    "kradeze_pripady_3b.json"
+  );
 
-  const startRef = useRef(null);
-  const wsRef = useRef(null);
+  const startRef = useRef<number | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     connectWebSocket();
     checkStatus();
     loadAvailableFiles();
-    const timer = setInterval(() => {
+    const timer = window.setInterval(() => {
       if (isRunning && startRef.current) {
         setDuration(Date.now() - startRef.current);
       }
     }, 1000);
     return () => {
-      clearInterval(timer);
+      window.clearInterval(timer);
       wsRef.current?.close();
     };
   }, [isRunning]);
@@ -44,7 +72,7 @@ const P4AssignThemes = () => {
   const connectWebSocket = () => {
     const ws = new WebSocket("ws://localhost:9000");
     wsRef.current = ws;
-    ws.onmessage = (e) => {
+    ws.onmessage = (e: MessageEvent<string>) => {
       try {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
@@ -120,9 +148,9 @@ const P4AssignThemes = () => {
     };
   };
 
-  const addOutput = (text, type = "info") => {
-    setOutput((prev) =>
-      [
+  const addOutput = (text: string, type: OutputLineType = "info") => {
+    setOutput((prev) => {
+      const next: OutputLine[] = [
         ...prev,
         {
           id: Date.now() + Math.random(),
@@ -130,8 +158,9 @@ const P4AssignThemes = () => {
           type,
           timestamp: new Date().toLocaleTimeString(),
         },
-      ].slice(-500)
-    );
+      ];
+      return next.slice(-500);
+    });
   };
 
   const checkStatus = async () => {
@@ -140,7 +169,8 @@ const P4AssignThemes = () => {
       const data = await res.json();
       setIsRunning(!!data.running);
       if (data.running) startRef.current = Date.now();
-    } catch (e) {
+    } catch (error) {
+      console.warn("Failed to check P4 status", error);
       setError("Failed to check P4 status");
     }
   };
@@ -150,21 +180,24 @@ const P4AssignThemes = () => {
       setFilesLoading(true);
       const response = await fetch("/api/data-files");
       const files = await response.json();
-      setAvailableFiles(files);
-    } catch (e) {
+      setAvailableFiles(Array.isArray(files) ? files : []);
+    } catch (err) {
       // ignore
     } finally {
       setFilesLoading(false);
     }
   };
 
-  const loadExistingThemes = async (filename) => {
+  const loadExistingThemes = async (filename: string) => {
     if (!filename) return;
     try {
       const response = await fetch(`/api/data/${filename}/themes?limit=10000`);
       const data = await response.json();
       if (response.ok) {
-        setExistingThemes(data.cases || []);
+        const cases = Array.isArray(data.cases)
+          ? (data.cases as CaseThemeItem[])
+          : [];
+        setExistingThemes(cases);
         setAnalysisStatus((prev) => ({
           ...prev,
           totalCases:
@@ -184,8 +217,12 @@ const P4AssignThemes = () => {
           "info"
         );
       }
-    } catch (e) {
-      addOutput(`❌ Failed to load existing themes: ${e.message}`, "error");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unknown error loading existing themes";
+      addOutput(`❌ Failed to load existing themes: ${message}`, "error");
     }
   };
 
@@ -206,9 +243,11 @@ const P4AssignThemes = () => {
         const body = await res.json();
         throw new Error(body.error || "Failed to start P4");
       }
-    } catch (e) {
-      setError(e.message);
-      addOutput(`❌ ${e.message}`, "error");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to start P4";
+      setError(message);
+      addOutput(`❌ ${message}`, "error");
     }
   };
 
@@ -219,13 +258,15 @@ const P4AssignThemes = () => {
         const body = await res.json();
         throw new Error(body.error || "Failed to stop P4");
       }
-    } catch (e) {
-      setError(e.message);
-      addOutput(`❌ ${e.message}`, "error");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to stop P4";
+      setError(message);
+      addOutput(`❌ ${message}`, "error");
     }
   };
 
-  const formatDuration = (ms) => {
+  const formatDuration = (ms: number) => {
     const s = Math.floor(ms / 1000);
     const m = Math.floor(s / 60);
     const h = Math.floor(m / 60);
@@ -234,7 +275,7 @@ const P4AssignThemes = () => {
     return `${s}s`;
   };
 
-  const toggleCaseExpansion = (caseId) => {
+  const toggleCaseExpansion = (caseId: string | number) => {
     setExpandedCases((prev) => {
       const next = new Set(prev);
       if (next.has(caseId)) next.delete(caseId);
@@ -243,7 +284,11 @@ const P4AssignThemes = () => {
     });
   };
 
-  const handleThemeUpdate = async (caseId, themeType, newValue) => {
+  const handleThemeUpdate = async (
+    caseId: string | number,
+    themeType: ThemeField,
+    newValue: string | null
+  ) => {
     try {
       if (!selectedDataFile) {
         addOutput("❌ No data file selected", "error");
@@ -266,9 +311,13 @@ const P4AssignThemes = () => {
         )
       );
       addOutput(`✅ Updated ${themeType} for case ${caseId}`, "success");
-    } catch (e) {
-      addOutput(`❌ Failed to update theme: ${e.message}`, "error");
-      if (selectedDataFile) loadExistingThemes(selectedDataFile);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to update theme";
+      addOutput(`❌ Failed to update theme: ${message}`, "error");
+      if (selectedDataFile) {
+        await loadExistingThemes(selectedDataFile);
+      }
     }
   };
 
@@ -281,7 +330,7 @@ const P4AssignThemes = () => {
       "case_text",
       "timestamp",
     ];
-    const escapeCsv = (v) => {
+    const escapeCsv = (v: unknown) => {
       const s = v == null ? "" : String(v);
       const needs = /[",\n]/.test(s);
       const esc = s.replace(/"/g, '""');
@@ -345,6 +394,13 @@ const P4AssignThemes = () => {
             <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
             <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
             <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            <option value="claude-sonnet-4-5-20250929">
+              Claude Sonnet 4.5
+            </option>
+            <option value="claude-3-5-sonnet-20241022">
+              Claude 3.5 Sonnet
+            </option>
+            <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
             <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
             <option value="gpt-5-mini-2025-08-07">gpt-5-mini-2025-08-07</option>
             <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07</option>
@@ -398,7 +454,8 @@ const P4AssignThemes = () => {
                   <option value="">-- Select a file --</option>
                   {availableFiles.map((file) => (
                     <option key={file.name} value={file.name}>
-                      {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                      {file.name} ({((file.size ?? 0) / 1024 / 1024).toFixed(2)}{" "}
+                      MB)
                     </option>
                   ))}
                 </select>

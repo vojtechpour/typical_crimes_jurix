@@ -1,18 +1,10 @@
 import React, { useState, useEffect } from "react";
-
-type Suggestion = {
-  id: string | number;
-  type: string;
-  title?: string;
-  description?: string;
-  confidence?: number;
-  action: any;
-};
+import type { AiSuggestion } from "../utils/aiUtils";
 
 interface Props {
-  suggestion: Suggestion;
-  onApply: (s: Suggestion) => void;
-  onReject: (s: Suggestion) => void;
+  suggestion: AiSuggestion;
+  onApply: (s: AiSuggestion) => void;
+  onReject: (s: AiSuggestion) => void;
   onFollowUp: (
     text: string,
     chatId?: string | number | null
@@ -345,33 +337,37 @@ const SuggestionItem: React.FC<Props> = ({
   return (
     <div className="suggestion-item">
       <div className="suggestion-content">
-        <div className="suggestion-header">
-          <span className="suggestion-icon">
-            {getSuggestionIcon(suggestion.type)}
-          </span>
-          <span className="suggestion-title">{suggestion.title}</span>
-          {!isAnswerType && (
-            <span
-              className={`confidence-badge ${getConfidenceColor(
-                suggestion.confidence
-              )}`}
-            >
-              {Math.round((suggestion.confidence || 0) * 100)}%
+        <>
+          <div className="suggestion-header">
+            <span className="suggestion-icon">
+              {getSuggestionIcon(suggestion.type)}
             </span>
+            <span className="suggestion-title">{suggestion.title}</span>
+            {!isAnswerType && (
+              <span
+                className={`confidence-badge ${getConfidenceColor(
+                  suggestion.confidence
+                )}`}
+              >
+                {Math.round((suggestion.confidence || 0) * 100)}%
+              </span>
+            )}
+          </div>
+
+          <p className="suggestion-description">{suggestion.description}</p>
+
+          {suggestion.action?.reason && !isAnswerType && (
+            <p className="suggestion-reason">
+              <>
+                <strong>Reasoning:</strong> {suggestion.action.reason}
+              </>
+            </p>
           )}
-        </div>
 
-        <p className="suggestion-description">{suggestion.description}</p>
-
-        {suggestion.action?.reason && !isAnswerType && (
-          <p className="suggestion-reason">
-            <strong>Reasoning:</strong> {suggestion.action.reason}
-          </p>
-        )}
-
-        <div className="suggestion-details">
-          {renderActionDetails(suggestion.action)}
-        </div>
+          <div className="suggestion-details">
+            {renderActionDetails(suggestion.action)}
+          </div>
+        </>
       </div>
 
       {!isAnswerType && (

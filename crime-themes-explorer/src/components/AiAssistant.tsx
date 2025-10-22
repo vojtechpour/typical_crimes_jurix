@@ -1,13 +1,6 @@
 import React, { useState } from "react";
 import SuggestionItem from "./SuggestionItem";
-
-type Suggestion = {
-  id: string | number;
-  type?: string;
-  title?: string;
-  description?: string;
-  action?: any;
-};
+import type { AiSuggestion } from "../utils/aiUtils";
 
 type AiSettings = {
   useGpt5?: boolean;
@@ -25,10 +18,10 @@ interface AiAssistantProps {
   onInstructionsChange: (v: string) => void;
   onAnalyze: (text?: string) => Promise<void> | void;
   isProcessing: boolean;
-  suggestions: Suggestion[];
+  suggestions: AiSuggestion[];
   showSuggestions: boolean;
-  onApplySuggestion: (s: Suggestion) => void;
-  onRejectSuggestion: (s: Suggestion) => void;
+  onApplySuggestion: (s: AiSuggestion) => void;
+  onRejectSuggestion: (s: AiSuggestion) => void;
   changesCount: number;
   aiSettings?: AiSettings;
 }
@@ -45,25 +38,54 @@ const AiAssistant: React.FC<AiAssistantProps> = ({
   changesCount,
   aiSettings,
 }) => {
-  const [chatResponses, setChatResponses] = useState<Record<string | number, any>>({});
+  const [chatResponses, setChatResponses] = useState<
+    Record<string | number, any>
+  >({});
 
-  const { useGpt5, model, reasoningEffort, verbosity, setUseGpt5, setAiModel, setReasoningEffort, setVerbosity } =
-    aiSettings || {};
+  const {
+    useGpt5,
+    model,
+    reasoningEffort,
+    verbosity,
+    setUseGpt5,
+    setAiModel,
+    setReasoningEffort,
+    setVerbosity,
+  } = aiSettings || {};
 
-  const handleFollowUp = async (followUpQuestion: string, chatId: string | number | null = null) => {
+  const handleFollowUp = async (
+    followUpQuestion: string,
+    chatId: string | number | null = null
+  ) => {
     if (chatId) {
       // This is a chat follow-up, handle it directly without creating new suggestions
       try {
         // Get current theme data for context
         const themeContext =
-          suggestions?.length > 0
-            ? suggestions.map((s) => (s as any).action?.details || []).flat().join(", ")
+          suggestions.length > 0
+            ? suggestions
+                .map((s) => {
+                  const details = (
+                    s.action as Record<string, unknown> | undefined
+                  )?.details;
+                  if (Array.isArray(details)) {
+                    return details.join(", ");
+                  }
+                  if (typeof details === "string") {
+                    return details;
+                  }
+                  return null;
+                })
+                .filter((v): v is string => Boolean(v))
+                .join(", ")
             : "No current theme data available";
 
         // Call the AI API directly for chat responses with thematic analysis context
         // Log model for chat follow-up
         try {
-          const modelLabel = useGpt5 ? model || "gpt-5" : "claude-3-5-sonnet-20241022";
+          const modelLabel = useGpt5
+            ? model || "gpt-5"
+            : "claude-3-5-sonnet-20241022";
           console.log(`[AI] Chat follow-up using model: ${modelLabel}`);
         } catch {}
 
@@ -131,7 +153,8 @@ Only return the JSON object, no additional text.`,
           const chatResponse = {
             chatId: chatId,
             content:
-              aiResponse.response || `I understand you asked: "${followUpQuestion}". Let me help you with that!`,
+              aiResponse.response ||
+              `I understand you asked: "${followUpQuestion}". Let me help you with that!`,
             timestamp: new Date(),
           };
 
@@ -158,7 +181,8 @@ Only return the JSON object, no additional text.`,
         // Error response
         const errorResponse = {
           chatId: chatId,
-          content: "Sorry, I encountered an error processing your message. Please try again.",
+          content:
+            "Sorry, I encountered an error processing your message. Please try again.",
           details: ["Check your connection", "Try rephrasing your question"],
           timestamp: new Date(),
           isError: true,
@@ -186,7 +210,9 @@ Only return the JSON object, no additional text.`,
         {/* AI Settings */}
         {aiSettings && (
           <div className="ai-settings" style={{ marginBottom: 8 }}>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <label
+              style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+            >
               <input
                 type="checkbox"
                 checked={!!useGpt5}
@@ -198,25 +224,60 @@ Only return the JSON object, no additional text.`,
             {useGpt5 && (
               <div
                 className="ai-settings-row"
-                style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  marginTop: 8,
+                  flexWrap: "wrap",
+                }}
               >
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
                   <span>Model</span>
-                  <select value={model || "gpt-5"} onChange={(e) => setAiModel && setAiModel(e.target.value)}>
+                  <select
+                    value={model || "gpt-5"}
+                    onChange={(e) => setAiModel && setAiModel(e.target.value)}
+                  >
                     <option value="gpt-5">gpt-5</option>
                     <option value="gpt-5-mini">gpt-5-mini</option>
                     <option value="gpt-5-nano">gpt-5-nano</option>
+                    <option value="claude-sonnet-4-5-20250929">
+                      Claude Sonnet 4.5
+                    </option>
+                    <option value="claude-3-5-sonnet-20241022">
+                      Claude 3.5 Sonnet
+                    </option>
+                    <option value="claude-3-5-haiku-20241022">
+                      Claude 3.5 Haiku
+                    </option>
                     <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
-                    <option value="gpt-5-mini-2025-08-07">gpt-5-mini-2025-08-07</option>
-                    <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07</option>
+                    <option value="gpt-5-mini-2025-08-07">
+                      gpt-5-mini-2025-08-07
+                    </option>
+                    <option value="gpt-5-nano-2025-08-07">
+                      gpt-5-nano-2025-08-07
+                    </option>
                   </select>
                 </label>
 
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
                   <span>Reasoning</span>
                   <select
                     value={reasoningEffort || "medium"}
-                    onChange={(e) => setReasoningEffort && setReasoningEffort(e.target.value)}
+                    onChange={(e) =>
+                      setReasoningEffort && setReasoningEffort(e.target.value)
+                    }
                   >
                     <option value="minimal">minimal</option>
                     <option value="low">low</option>
@@ -225,9 +286,20 @@ Only return the JSON object, no additional text.`,
                   </select>
                 </label>
 
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
                   <span>Verbosity</span>
-                  <select value={verbosity || "medium"} onChange={(e) => setVerbosity && setVerbosity(e.target.value)}>
+                  <select
+                    value={verbosity || "medium"}
+                    onChange={(e) =>
+                      setVerbosity && setVerbosity(e.target.value)
+                    }
+                  >
                     <option value="low">low</option>
                     <option value="medium">medium</option>
                     <option value="high">high</option>
@@ -246,7 +318,11 @@ Only return the JSON object, no additional text.`,
           rows={3}
         />
 
-        <button onClick={() => onAnalyze()} disabled={isProcessing} className="ai-analyze-btn">
+        <button
+          onClick={() => onAnalyze()}
+          disabled={isProcessing}
+          className="ai-analyze-btn"
+        >
           {isProcessing ? (
             <>
               <span className="loading-spinner">⏳</span>
@@ -267,7 +343,10 @@ Only return the JSON object, no additional text.`,
 
           <div className="suggestions-list">
             {suggestions.length === 0 ? (
-              <div className="no-suggestions">No suggestions generated. Try making more theme modifications first.</div>
+              <div className="no-suggestions">
+                No suggestions generated. Try making more theme modifications
+                first.
+              </div>
             ) : (
               suggestions.map((suggestion) => (
                 <SuggestionItem

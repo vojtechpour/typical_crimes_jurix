@@ -1,9 +1,13 @@
 import React from "react";
 import ProgressRing from "./ui/ProgressRing";
 
-type Phase = {
-  status?: string;
-  progress?: number;
+interface Phase {
+  progress: number;
+  status: string;
+}
+
+type PhaseWithKey = Phase & {
+  key: string;
 };
 
 interface Props {
@@ -14,7 +18,7 @@ interface Props {
 }
 
 const ProcessSummary: React.FC<Props> = ({ p2, p3, p3b, p4 }) => {
-  const phases = [];
+  const phases: PhaseWithKey[] = [];
 
   return (
     <div className="row" aria-label="Process summary" title="Pipeline status">

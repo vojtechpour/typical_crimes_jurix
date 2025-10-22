@@ -1,23 +1,58 @@
-const express = require("express");
-const cors = require("cors");
-const { spawn } = require("child_process");
-const path = require("path");
-const fs = require("fs");
-const WebSocket = require("ws");
-const http = require("http");
-const multer = require("multer");
+import express, { Request, Response } from "express";
+import cors from "cors";
+import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
+import path from "path";
+import fs from "fs";
+import WebSocket, { WebSocketServer } from "ws";
+import http from "http";
+import multer from "multer";
+
+const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
+const resolveProjectPath = (...segments: string[]): string =>
+  path.join(PROJECT_ROOT, ...segments);
+
+const SCRIPT_PATH = resolveProjectPath("analysis_p2.py");
+const DATA_DIR = resolveProjectPath("data");
+const UPLOADS_DIR = resolveProjectPath("uploads");
+const PYTHON_EXECUTABLE = resolveProjectPath("venv", "bin", "python3");
+const ANALYSIS_LOG_PATH = resolveProjectPath("analysis_p2.log");
+
+const resolveUploadsPath = (filename: string): string => {
+  const resolvedPath = path.resolve(UPLOADS_DIR, filename);
+  const relative = path.relative(UPLOADS_DIR, resolvedPath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Invalid uploads path traversal attempt");
+  }
+  return resolvedPath;
+};
+
+const toUploadsPathOrSendError = (
+  res: Response,
+  filename: string
+): string | null => {
+  try {
+    return resolveUploadsPath(filename);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Invalid uploads path";
+    res.status(400).json({ error: message });
+    return null;
+  }
+};
+
+const toErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocketServer({ server });
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
+  destination: (_req, _file, cb) => {
     cb(null, UPLOADS_DIR);
   },
-  filename: function (req, file, cb) {
-    // Add timestamp to filename to avoid conflicts
+  filename: (_req, file, cb) => {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const name = `uploaded_${timestamp}_${file.originalname}`;
     cb(null, name);
@@ -25,9 +60,8 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({
-  storage: storage,
-  fileFilter: function (req, file, cb) {
-    // Only accept JSON files
+  storage,
+  fileFilter: (_req, file, cb) => {
     if (
       file.mimetype === "application/json" ||
       file.originalname.endsWith(".json")
@@ -45,25 +79,27 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 
-const SCRIPT_PATH = "/Users/vojtechpour/projects/typical-crimes/analysis_p2.py";
-const DATA_DIR = "/Users/vojtechpour/projects/typical-crimes/data";
-const UPLOADS_DIR = "/Users/vojtechpour/projects/typical-crimes/uploads";
-const PYTHON_VENV =
-  "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
-
 // Create uploads directory if it doesn't exist
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
   console.log(`Created uploads directory: ${UPLOADS_DIR}`);
 }
 
+interface ProcessInfo {
+  process: ChildProcessWithoutNullStreams;
+  startTime: Date;
+  output: string[];
+  errors: string[];
+  dataFile?: string;
+}
+
 // Store active processes and their associated WebSocket connections
-const activeProcesses = new Map();
+const activeProcesses = new Map<string, ProcessInfo>();
 
 // Global script management
-let scriptProcess = null;
-let p3ScriptProcess = null; // Add P3 script process tracking
-let p4ScriptProcess = null; // Add P4 script process tracking
+let scriptProcess: ChildProcessWithoutNullStreams | null = null;
+let p3ScriptProcess: ChildProcessWithoutNullStreams | null = null; // Add P3 script process tracking
+let p4ScriptProcess: ChildProcessWithoutNullStreams | null = null; // Add P4 script process tracking
 
 // WebSocket connection handling
 wss.on("connection", (ws) => {
@@ -75,7 +111,7 @@ wss.on("connection", (ws) => {
 });
 
 // Broadcast message to all connected clients
-function broadcast(message) {
+function broadcast(message: unknown) {
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(message));
@@ -119,12 +155,17 @@ app.get("/api/data/:filename", (req, res) => {
     const { filename } = req.params;
     const { page = 1, limit = 50, search = "" } = req.query;
 
-    const filePath = path.join(UPLOADS_DIR, filename);
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: "File not found" });
     }
 
     const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+    const pageNumber = Math.max(Number(page) || 1, 1);
+    const limitNumber = Math.max(Number(limit) || 50, 1);
+    const searchTerm = typeof search === "string" ? search : "";
 
     // Convert object to array if needed
     let items = Array.isArray(data)
@@ -135,26 +176,26 @@ app.get("/api/data/:filename", (req, res) => {
         }));
 
     // Apply search filter
-    if (search) {
+    if (searchTerm) {
       items = items.filter((item) =>
-        JSON.stringify(item).toLowerCase().includes(search.toLowerCase())
+        JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     // Pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + parseInt(limit);
+    const startIndex = (pageNumber - 1) * limitNumber;
+    const endIndex = startIndex + limitNumber;
     const paginatedItems = items.slice(startIndex, endIndex);
 
     res.json({
       items: paginatedItems,
       total: items.length,
-      page: parseInt(page),
-      totalPages: Math.ceil(items.length / limit),
+      page: pageNumber,
+      totalPages: Math.ceil(items.length / limitNumber),
       hasMore: endIndex < items.length,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: toErrorMessage(error) });
   }
 });
 
@@ -186,10 +227,6 @@ app.post("/api/script/execute", (req, res) => {
     // Change to the script directory
     const scriptDir = path.dirname(SCRIPT_PATH);
 
-    // Use Python from the virtual environment
-    const pythonExe =
-      "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
-
     // Prepare script arguments
     const scriptArgs = [SCRIPT_PATH];
     if (dataFile) {
@@ -210,7 +247,7 @@ app.post("/api/script/execute", (req, res) => {
     // Determine provider from model selection
     // Default to Gemini if not specified or starts with "gemini"
     let provider = "gemini";
-    let envVars = { ...process.env };
+    const envVars = { ...process.env };
     if (model && typeof model === "string") {
       if (model.startsWith("gpt-")) {
         provider = "openai";
@@ -232,7 +269,7 @@ app.post("/api/script/execute", (req, res) => {
     envVars.MODEL_PROVIDER = provider; // tell analysis script which provider to use
 
     // Spawn Python process using the virtual environment
-    const pythonProcess = spawn(pythonExe, scriptArgs, {
+    const pythonProcess = spawn(PYTHON_EXECUTABLE, scriptArgs, {
       cwd: scriptDir,
       stdio: ["pipe", "pipe", "pipe"],
       env: envVars,
@@ -408,8 +445,7 @@ app.get("/api/results/latest", (req, res) => {
       DATA_DIR,
       "kradeze_pripady_test_100_2_balanced_dedupl.json"
     );
-    const logFile =
-      "/Users/vojtechpour/projects/typical-crimes/analysis_p2.log";
+    const logFile = ANALYSIS_LOG_PATH;
 
     const results = {};
 
@@ -521,12 +557,8 @@ app.post("/api/upload-data", upload.single("dataFile"), (req, res) => {
 app.delete("/api/data/:filename", (req, res) => {
   try {
     const { filename } = req.params;
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    // Security check: ensure the file is in the uploads directory
-    if (!filePath.startsWith(UPLOADS_DIR)) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
@@ -557,12 +589,8 @@ app.put("/api/data/:filename/case/:caseId", (req, res) => {
         .json({ error: "Invalid codes format. Expected array." });
     }
 
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    // Security check: ensure the file is in the uploads directory
-    if (!filePath.startsWith(UPLOADS_DIR)) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
@@ -608,30 +636,59 @@ app.get("/api/data/:filename/codes", (req, res) => {
     const { filename } = req.params;
     const { limit = 50 } = req.query;
 
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    // Security check: ensure the file is in the uploads directory
-    if (!filePath.startsWith(UPLOADS_DIR)) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
+    console.log("[API /codes] Request for filename:", filename);
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
+    console.log("[API /codes] Resolved file path:", filePath);
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
+      console.log("[API /codes] File not found:", filePath);
       return res.status(404).json({ error: "File not found" });
     }
 
+    console.log("[API /codes] File exists, reading...");
+    const fileStats = fs.statSync(filePath);
+    console.log("[API /codes] File size:", fileStats.size, "bytes");
+    console.log("[API /codes] File last modified:", fileStats.mtime);
+
     // Read data
-    const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const fileContent = fs.readFileSync(filePath, "utf8");
+    console.log(
+      "[API /codes] File content length:",
+      fileContent.length,
+      "characters"
+    );
+    const data = JSON.parse(fileContent);
+    console.log(
+      "[API /codes] Total cases in data object:",
+      Object.keys(data).length
+    );
+    const limitNumber = Math.max(Number(limit) || 50, 1);
 
     // Extract cases with existing initial codes
     const casesWithCodes = [];
     const allExistingCodes = []; // Collect all existing codes for consistency
+    let totalWithCodes = 0;
     for (const [caseId, caseData] of Object.entries(data)) {
       if (caseData.initial_code_0) {
+        totalWithCodes++;
+        const caseTextValue =
+          (caseData as any).plny_skutek_short ||
+          (caseData as any).plny_skutek ||
+          "";
+        if (caseId === "31745873") {
+          console.log("DEBUG Case 31745873:", {
+            has_plny_skutek_short: !!(caseData as any).plny_skutek_short,
+            has_plny_skutek: !!(caseData as any).plny_skutek,
+            caseTextLength: caseTextValue.length,
+            caseTextPreview: caseTextValue.substring(0, 100),
+          });
+        }
         casesWithCodes.push({
           caseId: caseId,
           codes: caseData.initial_code_0,
-          caseText: caseData.plny_skutek_short || "",
+          caseText: caseTextValue,
           timestamp: new Date().toISOString(), // Use current time as we don't have original timestamp
         });
         // Also collect for consistency reference
@@ -639,9 +696,19 @@ app.get("/api/data/:filename/codes", (req, res) => {
       }
     }
 
+    console.log("[API /codes] Cases with initial_code_0:", totalWithCodes);
+
     // Sort by case ID and limit results
     casesWithCodes.sort((a, b) => a.caseId.localeCompare(b.caseId));
     const limitedCases = casesWithCodes.slice(0, parseInt(limit));
+
+    console.log(
+      "[API /codes] Returning",
+      limitedCases.length,
+      "cases (limited from",
+      casesWithCodes.length,
+      ")"
+    );
 
     // Calculate statistics
     const totalCases = Object.keys(data).length;
@@ -658,6 +725,15 @@ app.get("/api/data/:filename/codes", (req, res) => {
     });
     const uniqueCodesCount = new Set(allCodes).size;
 
+    console.log(
+      "[API /codes] Statistics - total:",
+      totalCases,
+      "processed:",
+      processedCases,
+      "unique codes:",
+      uniqueCodesCount
+    );
+
     res.json({
       cases: limitedCases,
       statistics: {
@@ -670,8 +746,8 @@ app.get("/api/data/:filename/codes", (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching existing codes:", error);
-    res.status(500).json({ error: error.message });
+    console.error("[API /codes] Error fetching existing codes:", error);
+    res.status(500).json({ error: toErrorMessage(error) });
   }
 });
 
@@ -679,12 +755,8 @@ app.get("/api/data/:filename/codes", (req, res) => {
 app.delete("/api/data/:filename/codes", (req, res) => {
   try {
     const { filename } = req.params;
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    // Security check
-    if (!filePath.startsWith(UPLOADS_DIR)) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
 
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: "File not found" });
@@ -721,6 +793,181 @@ app.delete("/api/data/:filename/codes", (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting codes:", error);
+    res.status(500).json({ error: toErrorMessage(error) });
+  }
+});
+
+// Add more codes to a specific case using custom instructions
+app.post("/api/data/:filename/case/:caseId/add-codes", (req, res) => {
+  try {
+    const { filename, caseId } = req.params;
+    const { instructions, model } = req.body;
+
+    // Instructions are optional - empty string will trigger universal prompt
+    const userInstructions = instructions || "";
+
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    // Read current data
+    const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+    // Check if case exists
+    if (!(caseId in data)) {
+      return res.status(404).json({ error: "Case not found" });
+    }
+
+    const caseData = data[caseId];
+
+    // Gather all existing codes for consistency
+    const allExistingCodes = [];
+    for (const [id, case_data] of Object.entries(data)) {
+      if (case_data.initial_code_0) {
+        allExistingCodes.push(case_data.initial_code_0);
+      }
+    }
+
+    // Get the current codes for this case
+    const currentCodes = caseData.initial_code_0 || [];
+    const currentCodesArray = Array.isArray(currentCodes)
+      ? currentCodes
+      : [currentCodes];
+
+    // Use the dedicated add_codes.py script (separate from regenerate)
+    const addCodesScript = path.join(__dirname, "..", "..", "add_codes.py");
+
+    // Prepare the arguments for add_codes.py
+    const addCodesArgs = [
+      addCodesScript,
+      "--case-id",
+      caseId,
+      "--case-text",
+      caseData.plny_skutek_short || caseData.plny_skutek || "",
+      "--instructions",
+      userInstructions,
+      "--existing-codes",
+      JSON.stringify(currentCodes),
+      "--all-existing-codes",
+      JSON.stringify(allExistingCodes),
+    ];
+
+    // Determine provider and propagate selected model via env like Phase 2
+    let provider = "gemini";
+    const envVars = { ...process.env };
+    if (model && typeof model === "string") {
+      if (model.startsWith("gpt-")) {
+        provider = "openai";
+        envVars.OPENAI_MODEL = model;
+        if (envVars.GEMINI_MODEL) delete envVars.GEMINI_MODEL;
+        if (envVars.ANTHROPIC_MODEL) delete envVars.ANTHROPIC_MODEL;
+      } else if (model.startsWith("claude")) {
+        provider = "claude";
+        envVars.ANTHROPIC_MODEL = model;
+        if (envVars.GEMINI_MODEL) delete envVars.GEMINI_MODEL;
+        if (envVars.OPENAI_MODEL) delete envVars.OPENAI_MODEL;
+      } else {
+        provider = "gemini";
+        envVars.GEMINI_MODEL = model;
+        if (envVars.OPENAI_MODEL) delete envVars.OPENAI_MODEL;
+        if (envVars.ANTHROPIC_MODEL) delete envVars.ANTHROPIC_MODEL;
+      }
+    }
+    envVars.MODEL_PROVIDER = provider;
+
+    // Spawn Python process for adding codes
+    const pythonProcess = spawn(PYTHON_EXECUTABLE, addCodesArgs, {
+      cwd: path.dirname(addCodesScript),
+      stdio: ["pipe", "pipe", "pipe"],
+      env: envVars,
+    });
+
+    let outputData = "";
+    let errorData = "";
+
+    // Handle stdout
+    pythonProcess.stdout.on("data", (data) => {
+      outputData += data.toString();
+    });
+
+    // Handle stderr
+    pythonProcess.stderr.on("data", (data) => {
+      errorData += data.toString();
+    });
+
+    // Handle process completion
+    pythonProcess.on("close", (code) => {
+      if (code === 0) {
+        try {
+          // Parse the output as JSON
+          const result = JSON.parse(outputData.trim());
+
+          if (result.success && result.codes) {
+            // Merge the new codes with existing codes (avoid duplicates)
+            const newCodes = Array.isArray(result.codes)
+              ? result.codes
+              : [result.codes];
+            const mergedCodes = [
+              ...new Set([...currentCodesArray, ...newCodes]),
+            ];
+
+            // Update the case with merged codes
+            data[caseId].initial_code_0 = mergedCodes;
+
+            // Write back to file
+            fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+
+            // Log the addition
+            console.log(
+              `Added codes for case ${caseId} in file ${filename}. New codes:`,
+              newCodes
+            );
+
+            res.json({
+              success: true,
+              message: `Successfully added ${newCodes.length} new codes for case ${caseId}`,
+              caseId,
+              codes: mergedCodes,
+              addedCount: newCodes.length,
+              instructions: userInstructions,
+              timestamp: new Date().toISOString(),
+            });
+          } else {
+            throw new Error(result.error || "Adding codes failed");
+          }
+        } catch (parseError) {
+          console.error("Error parsing add codes output:", parseError);
+          console.error("Raw output:", outputData);
+          console.error("Error output:", errorData);
+          res.status(500).json({
+            error: "Failed to parse add codes results",
+            details: parseError.message,
+          });
+        }
+      } else {
+        console.error("Add codes process failed with code:", code);
+        console.error("Error output:", errorData);
+        res.status(500).json({
+          error: "Add codes process failed",
+          details: errorData,
+        });
+      }
+    });
+
+    // Handle process error
+    pythonProcess.on("error", (error) => {
+      console.error("Error spawning add codes process:", error);
+      res.status(500).json({
+        error: "Failed to start add codes process",
+        details: error.message,
+      });
+    });
+  } catch (error) {
+    console.error("Error in add codes endpoint:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -734,12 +981,8 @@ app.post("/api/data/:filename/case/:caseId/regenerate", (req, res) => {
     // Instructions are optional - empty string will trigger universal prompt
     const userInstructions = instructions || "";
 
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    // Security check: ensure the file is in the uploads directory
-    if (!filePath.startsWith(UPLOADS_DIR)) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
@@ -778,7 +1021,7 @@ app.post("/api/data/:filename/case/:caseId/regenerate", (req, res) => {
       "--case-id",
       caseId,
       "--case-text",
-      caseData.plny_skutek_short || "",
+      caseData.plny_skutek_short || caseData.plny_skutek || "",
       "--instructions",
       userInstructions,
       "--existing-codes",
@@ -786,10 +1029,6 @@ app.post("/api/data/:filename/case/:caseId/regenerate", (req, res) => {
       "--all-existing-codes",
       JSON.stringify(allExistingCodes),
     ];
-
-    // Use Python from the virtual environment
-    const pythonExe =
-      "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
 
     // Determine provider and propagate selected model via env like Phase 2
     let provider = "gemini";
@@ -815,7 +1054,7 @@ app.post("/api/data/:filename/case/:caseId/regenerate", (req, res) => {
     envVars.MODEL_PROVIDER = provider;
 
     // Spawn Python process for regeneration
-    const pythonProcess = spawn(pythonExe, regenerationArgs, {
+    const pythonProcess = spawn(PYTHON_EXECUTABLE, regenerationArgs, {
       cwd: path.dirname(regenerationScript),
       stdio: ["pipe", "pipe", "pipe"],
       env: envVars,
@@ -914,12 +1153,8 @@ app.post("/api/data/:filename/bulk-regenerate", (req, res) => {
         .json({ error: "Instructions are required for bulk regeneration" });
     }
 
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    // Security check: ensure the file is in the uploads directory
-    if (!filePath.startsWith(UPLOADS_DIR)) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
@@ -936,7 +1171,7 @@ app.post("/api/data/:filename/bulk-regenerate", (req, res) => {
       if (caseData.initial_code_0) {
         casesWithCodes.push({
           caseId,
-          caseText: caseData.plny_skutek_short || "",
+          caseText: caseData.plny_skutek_short || caseData.plny_skutek || "",
           existingCodes: caseData.initial_code_0,
         });
         // Also collect for consistency reference
@@ -977,12 +1212,8 @@ app.post("/api/data/:filename/bulk-regenerate", (req, res) => {
       JSON.stringify(allExistingCodes),
     ];
 
-    // Use Python from the virtual environment
-    const pythonExe =
-      "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
-
     // Spawn Python process for bulk regeneration
-    const pythonProcess = spawn(pythonExe, regenerationArgs, {
+    const pythonProcess = spawn(PYTHON_EXECUTABLE, regenerationArgs, {
       cwd: path.dirname(bulkRegenerationScript),
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -1175,8 +1406,8 @@ app.post("/api/p3/execute", (req, res) => {
     }
     envVars.MODEL_PROVIDER = provider;
 
-    p3ScriptProcess = spawn(PYTHON_VENV, pythonArgs, {
-      cwd: __dirname + "/../..",
+    p3ScriptProcess = spawn(PYTHON_EXECUTABLE, pythonArgs, {
+      cwd: PROJECT_ROOT,
       env: envVars,
     });
 
@@ -1313,7 +1544,11 @@ app.post("/api/p3/execute", (req, res) => {
     });
   } catch (error) {
     console.error("Error starting P3 script:", error);
-    res.status(500).json({ error: "Failed to start P3 script" });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: "Failed to start P3 script",
+      details: errorMessage,
+    });
   }
 });
 
@@ -1365,8 +1600,8 @@ function startP3bAnalysis(dataFile, model) {
     }
     envVars.MODEL_PROVIDER = provider;
 
-    p3bScriptProcess = spawn(PYTHON_VENV, pythonArgs, {
-      cwd: __dirname + "/../..",
+    p3bScriptProcess = spawn(PYTHON_EXECUTABLE, pythonArgs, {
+      cwd: PROJECT_ROOT,
       env: envVars,
     });
 
@@ -1508,8 +1743,8 @@ app.post("/api/p4/execute", (req, res) => {
       timestamp: new Date().toISOString(),
     });
 
-    p4ScriptProcess = spawn(PYTHON_VENV, pythonArgs, {
-      cwd: __dirname + "/../..",
+    p4ScriptProcess = spawn(PYTHON_EXECUTABLE, pythonArgs, {
+      cwd: PROJECT_ROOT,
       env: envVars,
     });
 
@@ -1665,12 +1900,8 @@ app.get("/api/data/:filename/themes", (req, res) => {
     const { filename } = req.params;
     const { limit = 50 } = req.query;
 
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    // Security check: ensure the file is in the uploads directory
-    if (!filePath.startsWith(UPLOADS_DIR)) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
@@ -1679,6 +1910,7 @@ app.get("/api/data/:filename/themes", (req, res) => {
 
     // Read data
     const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const limitNumber = Math.max(Number(limit) || 50, 1);
 
     // Extract cases with existing candidate themes
     const casesWithThemes = [];
@@ -1690,7 +1922,7 @@ app.get("/api/data/:filename/themes", (req, res) => {
           candidate_theme: caseData.candidate_theme, // P3 candidate theme
           theme: caseData.theme, // P3b finalized theme
           initialCodes: caseData.initial_code_0 || [],
-          caseText: caseData.plny_skutek_short || "",
+          caseText: caseData.plny_skutek_short || caseData.plny_skutek || "",
           timestamp: new Date().toISOString(), // Use current time as we don't have original timestamp
         });
         // Also collect for consistency reference (prioritize candidate_theme for existing themes list)
@@ -1702,7 +1934,7 @@ app.get("/api/data/:filename/themes", (req, res) => {
 
     // Sort by case ID and limit results
     casesWithThemes.sort((a, b) => a.caseId.localeCompare(b.caseId));
-    const limitedCases = casesWithThemes.slice(0, parseInt(limit));
+    const limitedCases = casesWithThemes.slice(0, limitNumber);
 
     // Calculate statistics
     const totalCases = Object.keys(data).length;
@@ -1724,7 +1956,7 @@ app.get("/api/data/:filename/themes", (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching existing themes:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: toErrorMessage(error) });
   }
 });
 
@@ -1749,12 +1981,8 @@ app.put("/api/data/:filename/case/:caseId/update-theme", (req, res) => {
       });
     }
 
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    // Security check: ensure the file is in the uploads directory
-    if (!filePath.startsWith(UPLOADS_DIR)) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
@@ -1795,7 +2023,52 @@ app.put("/api/data/:filename/case/:caseId/update-theme", (req, res) => {
     });
   } catch (error) {
     console.error("Error updating case theme:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: toErrorMessage(error) });
+  }
+});
+
+// Delete all candidate themes from a data file
+app.delete("/api/data/:filename/delete-all-candidate-themes", (req, res) => {
+  try {
+    const { filename } = req.params;
+
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    // Read current data
+    const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+    // Count and delete all candidate themes
+    let deletedCount = 0;
+    for (const [caseId, caseData] of Object.entries(data)) {
+      if (caseData.candidate_theme) {
+        delete data[caseId].candidate_theme;
+        deletedCount++;
+      }
+    }
+
+    // Write back to file
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+
+    // Log the deletion
+    console.log(
+      `Deleted ${deletedCount} candidate themes from file ${filename}`
+    );
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deletedCount} candidate themes`,
+      deletedCount,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error deleting candidate themes:", error);
+    res.status(500).json({ error: toErrorMessage(error) });
   }
 });
 
@@ -1808,12 +2081,8 @@ app.post("/api/data/:filename/case/:caseId/regenerate-theme", (req, res) => {
     // Instructions are optional - empty string will trigger universal prompt
     const userInstructions = instructions || "";
 
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    // Security check: ensure the file is in the uploads directory
-    if (!filePath.startsWith(UPLOADS_DIR)) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
@@ -1861,12 +2130,8 @@ app.post("/api/data/:filename/case/:caseId/regenerate-theme", (req, res) => {
       JSON.stringify(allExistingThemes),
     ];
 
-    // Use Python from the virtual environment
-    const pythonExe =
-      "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
-
     // Spawn Python process for regeneration
-    const pythonProcess = spawn(pythonExe, regenerationArgs, {
+    const pythonProcess = spawn(PYTHON_EXECUTABLE, regenerationArgs, {
       cwd: path.dirname(regenerationScript),
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -1943,7 +2208,7 @@ app.post("/api/data/:filename/case/:caseId/regenerate-theme", (req, res) => {
     });
   } catch (error) {
     console.error("Error in theme regeneration endpoint:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: toErrorMessage(error) });
   }
 });
 
@@ -1963,12 +2228,8 @@ app.post("/api/data/:filename/bulk-regenerate-themes", (req, res) => {
       });
     }
 
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    // Security check: ensure the file is in the uploads directory
-    if (!filePath.startsWith(UPLOADS_DIR)) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
+    const filePath = toUploadsPathOrSendError(res, filename);
+    if (!filePath) return;
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
@@ -2028,12 +2289,8 @@ app.post("/api/data/:filename/bulk-regenerate-themes", (req, res) => {
       JSON.stringify(allExistingThemes),
     ];
 
-    // Use Python from the virtual environment
-    const pythonExe =
-      "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
-
     // Spawn Python process for bulk theme regeneration
-    const pythonProcess = spawn(pythonExe, regenerationArgs, {
+    const pythonProcess = spawn(PYTHON_EXECUTABLE, regenerationArgs, {
       cwd: path.dirname(bulkRegenerationScript),
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -2165,7 +2422,7 @@ app.post("/api/data/:filename/bulk-regenerate-themes", (req, res) => {
     });
   } catch (error) {
     console.error("Error in bulk theme regeneration endpoint:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: toErrorMessage(error) });
   }
 });
 
@@ -2178,8 +2435,6 @@ app.post("/api/ai-suggestions", async (req, res) => {
       return res.status(400).json({ error: "Prompt is required" });
     }
 
-    const pythonExe =
-      "/Users/vojtechpour/projects/typical-crimes/venv/bin/python3";
     const aiScriptPath = path.join(__dirname, "ai_suggestions.py");
 
     // Execute the Python script
@@ -2188,7 +2443,7 @@ app.post("/api/ai-suggestions", async (req, res) => {
       pythonArgs.push(JSON.stringify(aiSettings));
     }
 
-    const pythonProcess = spawn(pythonExe, pythonArgs, {
+    const pythonProcess = spawn(PYTHON_EXECUTABLE, pythonArgs, {
       cwd: __dirname,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -2241,7 +2496,7 @@ app.post("/api/ai-suggestions", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in AI suggestions endpoint:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: toErrorMessage(error) });
   }
 });
 

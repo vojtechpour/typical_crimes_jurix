@@ -1,11 +1,56 @@
-// Real AI suggestion generator using OpenAI API
+export type AiReasoningEffort = "minimal" | "low" | "medium" | "high";
+export type AiVerbosity = "low" | "medium" | "high";
+
+export interface AiSettings {
+  useGpt5?: boolean;
+  model?: string;
+  reasoningEffort?: AiReasoningEffort;
+  verbosity?: AiVerbosity;
+}
+
+export interface ThemeSummary {
+  name: string;
+  candidateThemes: string[];
+}
+
+export interface ChangeContextEntry {
+  type: string;
+  description: string;
+  timestamp: string;
+  details?: Record<string, unknown>;
+}
+
+export interface AiSuggestionAction extends Record<string, unknown> {
+  type: string;
+}
+
+export interface AiSuggestion {
+  id: number;
+  type: string;
+  title: string;
+  description: string;
+  action: AiSuggestionAction;
+  confidence: number;
+}
+
+interface AiServiceResponse {
+  content: string;
+  [key: string]: unknown;
+}
+
+// Real AI suggestion generator using hosted AI API
 export const generateAiSuggestions = async (
-  changesContext,
-  currentThemes,
-  userInstructions,
-  aiSettings = null
-) => {
+  changesContext: ChangeContextEntry[],
+  currentThemes: ThemeSummary[],
+  userInstructions: string,
+  aiSettings: AiSettings | null = null
+): Promise<AiSuggestion[]> => {
   try {
+    const totalCandidates = currentThemes.reduce(
+      (sum, theme) => sum + (theme.candidateThemes?.length ?? 0),
+      0
+    );
+
     // Prepare the data for AI analysis
     const themeAnalysis = {
       totalThemes: currentThemes.length,
@@ -14,7 +59,7 @@ export const generateAiSuggestions = async (
         candidateCount: theme.candidateThemes.length,
         candidates: theme.candidateThemes,
       })),
-      recentChanges: changesContext.slice(0, 10), // Last 10 changes
+      recentChanges: changesContext.slice(0, 10),
       userGoal: userInstructions,
     };
 
@@ -83,10 +128,7 @@ For "ahoj" or "hello":
         "type": "answer",
         "answer": "Ahoj! Jak se máš? I'm here to help you organize your crime theme data. I can see you have ${
           currentThemes.length
-        } themes with ${currentThemes.reduce(
-      (sum, theme) => sum + theme.candidateThemes.length,
-      0
-    )} total candidates. What would you like to know or work on?",
+        } themes with ${totalCandidates} total candidates. What would you like to know or work on?",
         "details": ["Ask me questions about your data", "Request theme organization suggestions", "Chat about anything related to your dataset"]
       }
     }
@@ -97,7 +139,7 @@ For questions like "jak se máš" or "how are you":
 {
   "suggestions": [
     {
-      "type": "answer", 
+      "type": "answer",
       "title": "How I'm Doing",
       "description": "AI assistant status and readiness to help",
       "action": {
@@ -114,19 +156,16 @@ For dataset questions like "what do you think about this dataset":
   "suggestions": [
     {
       "type": "answer",
-      "title": "Dataset Analysis", 
+      "title": "Dataset Analysis",
       "description": "My thoughts on your crime theme dataset",
       "action": {
         "type": "answer",
         "answer": "Your dataset is quite interesting! You have ${
           currentThemes.length
-        } main themes covering ${currentThemes.reduce(
-      (sum, theme) => sum + theme.candidateThemes.length,
-      0
-    )} different crime types. I notice some themes are more populated than others, and there might be opportunities for better organization.",
+        } main themes covering ${totalCandidates} different crime types. I notice some themes are more populated than others, and there might be opportunities for better organization.",
         "details": [
           "Most populated theme: [theme with most candidates]",
-          "Least populated themes: [themes with few candidates]", 
+          "Least populated themes: [themes with few candidates]",
           "Potential overlaps I've noticed",
           "Areas for improvement I can suggest"
         ]
@@ -137,7 +176,7 @@ For dataset questions like "what do you think about this dataset":
 
 ACTIONABLE SUGGESTION TYPES (only use when user specifically requests organizational improvements):
 - "move_candidate" - Move a single candidate theme between themes
-- "move_multiple_candidates" - Move multiple candidate themes between themes  
+- "move_multiple_candidates" - Move multiple candidate themes between themes
 - "rename_candidate" - Rename a candidate theme
 - "rename_theme" - Rename a main theme
 - "add_candidate" - Add a new candidate theme
@@ -146,7 +185,7 @@ ACTIONABLE SUGGESTION TYPES (only use when user specifically requests organizati
 - "merge_themes" - Merge two main themes
 - "merge_candidates" - Merge two candidate themes
 
-IMPORTANT: 
+IMPORTANT:
 - Be conversational and friendly
 - Use Czech phrases when appropriate (ahoj, jak se máš, děkuji, etc.)
 - For greetings and questions, provide ONLY conversational answers
@@ -164,18 +203,19 @@ Only return the JSON object, no additional text.`;
       console.log(
         `[AI] Generating theme suggestions with model: ${modelLabel}`
       );
-    } catch {}
+    } catch (err) {
+      console.warn("Failed to log AI model", err);
+    }
 
-    // Call OpenAI API
     const response = await fetch("/api/ai-suggestions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        prompt: prompt,
+        prompt,
         themeData: themeAnalysis,
-        aiSettings: aiSettings,
+        aiSettings,
       }),
     });
 
@@ -183,72 +223,81 @@ Only return the JSON object, no additional text.`;
       throw new Error(`AI service error: ${response.status}`);
     }
 
-    const result = await response.json();
+    const result: AiServiceResponse = await response.json();
 
     // Parse and validate the AI response
-    let suggestions = [];
+    let suggestionsRaw: unknown = [];
     try {
       console.log("Raw AI response:", result.content);
       const aiResponse = JSON.parse(result.content);
       console.log("Parsed AI response:", aiResponse);
-      suggestions = aiResponse.suggestions || [];
-      console.log("Extracted suggestions:", suggestions);
+      suggestionsRaw = aiResponse.suggestions ?? [];
+      console.log("Extracted suggestions:", suggestionsRaw);
     } catch (parseError) {
       console.error("Error parsing AI response:", parseError);
       console.error("Raw content:", result.content);
-      // Fallback to extracting suggestions from text response
-      suggestions = extractSuggestionsFromText(result.content);
+      suggestionsRaw = extractSuggestionsFromText(result.content);
     }
 
-    // Add unique IDs and validate suggestions
-    const validatedSuggestions = suggestions
-      .map((suggestion, index) => {
-        // Validate suggestion structure
+    const validatedSuggestions = (
+      Array.isArray(suggestionsRaw) ? suggestionsRaw : []
+    )
+      .map((suggestion, index): AiSuggestion | null => {
         if (!suggestion || typeof suggestion !== "object") {
           console.warn("Invalid suggestion object:", suggestion);
           return null;
         }
 
-        if (!suggestion.action || typeof suggestion.action !== "object") {
+        const action = (suggestion as Record<string, unknown>).action;
+        if (!action || typeof action !== "object") {
           console.warn("Invalid action in suggestion:", suggestion);
           return null;
         }
 
+        const suggestionAction = action as AiSuggestionAction;
+
         return {
           id: Date.now() + index,
-          type: suggestion.type || "unknown",
-          title: suggestion.title || "Untitled suggestion",
-          description: suggestion.description || "No description provided",
+          type:
+            (suggestion as Record<string, unknown>).type?.toString() ||
+            "unknown",
+          title:
+            (suggestion as Record<string, unknown>).title?.toString() ||
+            "Untitled suggestion",
+          description:
+            (suggestion as Record<string, unknown>).description?.toString() ||
+            "No description provided",
           action: {
-            type: suggestion.action.type || "unknown",
-            ...suggestion.action,
+            ...suggestionAction,
           },
           confidence: Math.min(
-            1.0,
-            Math.max(0.0, suggestion.confidence || 0.7)
+            1,
+            Math.max(
+              0,
+              Number((suggestion as Record<string, unknown>).confidence ?? 0.7)
+            )
           ),
         };
       })
-      .filter((suggestion) => suggestion !== null)
-      .slice(0, 10); // Limit to 10 suggestions
+      .filter((suggestion): suggestion is AiSuggestion => suggestion !== null)
+      .slice(0, 10);
 
     console.log("Final validated suggestions:", validatedSuggestions);
     return validatedSuggestions;
   } catch (error) {
     console.error("Error generating AI suggestions:", error);
-
-    // Fallback to local analysis if AI service fails
-    return generateFallbackSuggestions(currentThemes, userInstructions);
+    return generateFallbackSuggestions(currentThemes);
   }
 };
 
 // Fallback function for when AI service is unavailable
-const generateFallbackSuggestions = (currentThemes, userInstructions) => {
-  const suggestions = [];
+const generateFallbackSuggestions = (
+  currentThemes: ThemeSummary[]
+): AiSuggestion[] => {
+  const suggestions: AiSuggestion[] = [];
   let suggestionId = 1;
 
-  // Simple keyword-based analysis as fallback
-  const keywords = {
+  const keywords: Record<string, string[]> = {
     vehicle: ["car", "vehicle", "auto", "truck", "motorcycle", "bike"],
     digital: [
       "cyber",
@@ -264,8 +313,8 @@ const generateFallbackSuggestions = (currentThemes, userInstructions) => {
   };
 
   Object.entries(keywords).forEach(([category, words]) => {
-    const matchingCandidates = [];
-    const sourceThemes = [];
+    const matchingCandidates: string[] = [];
+    const sourceThemes: string[] = [];
 
     currentThemes.forEach((theme) => {
       const matches = theme.candidateThemes.filter((candidate) =>
@@ -278,20 +327,18 @@ const generateFallbackSuggestions = (currentThemes, userInstructions) => {
     });
 
     if (matchingCandidates.length >= 3) {
+      const titleCategory =
+        category.charAt(0).toUpperCase() + category.slice(1);
       suggestions.push({
         id: suggestionId++,
         type: "create",
-        title: `Create "${
-          category.charAt(0).toUpperCase() + category.slice(1)
-        } Crime" theme`,
+        title: `Create "${titleCategory} Crime" theme`,
         description: `Found ${matchingCandidates.length} ${category}-related candidates that could form a specialized theme`,
         action: {
           type: "create_theme",
-          newThemeName: `${
-            category.charAt(0).toUpperCase() + category.slice(1)
-          } Crime`,
+          newThemeName: `${titleCategory} Crime`,
           candidatesToMove: matchingCandidates,
-          fromThemes: [...new Set(sourceThemes)],
+          fromThemes: Array.from(new Set(sourceThemes)),
           reason: `Semantic analysis identified ${matchingCandidates.length} related candidates`,
         },
         confidence: Math.min(0.9, 0.6 + matchingCandidates.length * 0.05),
@@ -303,9 +350,7 @@ const generateFallbackSuggestions = (currentThemes, userInstructions) => {
 };
 
 // Helper function to extract suggestions from unstructured AI text
-const extractSuggestionsFromText = (text) => {
-  // This would parse suggestions from natural language AI response
-  // For now, return empty array - implement based on your AI service response format
+const extractSuggestionsFromText = (text: string): AiSuggestion[] => {
   console.log("Attempting to parse suggestions from text:", text);
   return [];
 };
