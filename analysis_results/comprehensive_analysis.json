@@ -1,0 +1,294 @@
+{
+  "metadata": {
+    "total_codes": 112,
+    "total_pairs": 6216,
+    "analysis_date": "2025-06-09T16:45:04",
+    "best_clustering_method": "kmeans"
+  },
+  "clustering_results": {
+    "kmeans": {
+      "n_clusters": 2,
+      "silhouette_score": 0.1272046989461421,
+      "cluster_sizes": [
+        40,
+        72
+      ]
+    },
+    "hierarchical": {
+      "n_clusters": 2,
+      "silhouette_score": 0.12602550344173832,
+      "cluster_sizes": [
+        71,
+        41
+      ]
+    },
+    "dbscan": {
+      "n_clusters": 3,
+      "silhouette_score": 0.060617646350500404,
+      "cluster_sizes": [
+        79,
+        3,
+        3
+      ],
+      "eps": 0.3
+    }
+  },
+  "top_similar_pairs": [
+    {
+      "similarity": 0.9325450786666335,
+      "code1": "shoplifting_alcohol_returned",
+      "code2": "shoplifting_alcohol_caught_and_returned"
+    },
+    {
+      "similarity": 0.9245053256489177,
+      "code1": "shoplifting_underwear_caught_and_returned",
+      "code2": "shoplifting_clothing_caught_and_returned"
+    },
+    {
+      "similarity": 0.9218171080754738,
+      "code1": "shoplifting_alcohol",
+      "code2": "shoplifting_alcohol_under_clothing"
+    },
+    {
+      "similarity": 0.914470663540368,
+      "code1": "shoplifting_alcohol",
+      "code2": "shoplifting_liquor"
+    },
+    {
+      "similarity": 0.9117432446585887,
+      "code1": "shoplifting_alcohol",
+      "code2": "shoplifting_alcohol_mixed"
+    },
+    {
+      "similarity": 0.9087801610476304,
+      "code1": "theft_from_apartment",
+      "code2": "theft_of_money_from_apartment"
+    },
+    {
+      "similarity": 0.9086926951646654,
+      "code1": "shoplifting_meat",
+      "code2": "shoplifting_meat_product"
+    },
+    {
+      "similarity": 0.8883073703675523,
+      "code1": "theft_unsecured_bicycle",
+      "code2": "theft_of_unsecured_bicycle_in_public"
+    },
+    {
+      "similarity": 0.8867735484385437,
+      "code1": "shoplifting_alcohol",
+      "code2": "shoplifting_alcohol_with_accomplice"
+    },
+    {
+      "similarity": 0.8854334994281751,
+      "code1": "theft_of_bicycle",
+      "code2": "theft_unsecured_bicycle"
+    },
+    {
+      "similarity": 0.8828154666620438,
+      "code1": "shoplifting_alcohol",
+      "code2": "shoplifting_alcohol_returned"
+    },
+    {
+      "similarity": 0.8797376780075794,
+      "code1": "shoplifting_various_goods",
+      "code2": "shoplifting_different_goods"
+    },
+    {
+      "similarity": 0.8781166115436488,
+      "code1": "theft_of_bicycle",
+      "code2": "theft_of_bicycle_from_shared_space"
+    },
+    {
+      "similarity": 0.8766228074960432,
+      "code1": "shoplifting_alcohol",
+      "code2": "shoplifting_alcohol_and_attempted_theft"
+    },
+    {
+      "similarity": 0.8747867310504182,
+      "code1": "shoplifting_alcohol",
+      "code2": "shoplifting_alcohol_caught_and_returned"
+    },
+    {
+      "similarity": 0.8683390137125441,
+      "code1": "shoplifting_alcohol",
+      "code2": "shoplifting_beer"
+    },
+    {
+      "similarity": 0.8665689232076159,
+      "code1": "shoplifting_liquor",
+      "code2": "shoplifting_alcohol_under_clothing"
+    },
+    {
+      "similarity": 0.865303852906163,
+      "code1": "shoplifting_liquor",
+      "code2": "shoplifting_alcohol_mixed"
+    },
+    {
+      "similarity": 0.8619788257345793,
+      "code1": "shoplifting_wine",
+      "code2": "shoplifting_wine_and_variety_goods"
+    },
+    {
+      "similarity": 0.8618123099095216,
+      "code1": "shoplifting_beer",
+      "code2": "shoplifting_liquor"
+    },
+    {
+      "similarity": 0.8610692480457344,
+      "code1": "theft_of_bicycle",
+      "code2": "theft_of_unsecured_bicycle_in_public"
+    },
+    {
+      "similarity": 0.8595119115589155,
+      "code1": "shoplifting_alcohol",
+      "code2": "shoplifting_alcohol_passing_checkout"
+    },
+    {
+      "similarity": 0.8522173281154602,
+      "code1": "theft_from_apartment",
+      "code2": "theft_from_apartment_guest"
+    },
+    {
+      "similarity": 0.8510462337994651,
+      "code1": "theft_of_bicycle",
+      "code2": "theft_of_bicycles_with_accomplice"
+    },
+    {
+      "similarity": 0.8509622624305092,
+      "code1": "shoplifting_various_goods",
+      "code2": "shoplifting_wine_and_variety_goods"
+    },
+    {
+      "similarity": 0.846810832744912,
+      "code1": "theft_money_from_visit",
+      "code2": "theft_money_from_visit_at_night"
+    },
+    {
+      "similarity": 0.846543744846532,
+      "code1": "shoplifting_wine",
+      "code2": "shoplifting_liquor"
+    },
+    {
+      "similarity": 0.8441203146716345,
+      "code1": "shoplifting_alcohol_mixed",
+      "code2": "shoplifting_alcohol_under_clothing"
+    },
+    {
+      "similarity": 0.8407144489350866,
+      "code1": "shoplifting_alcohol_returned",
+      "code2": "shoplifting_alcohol_mixed"
+    },
+    {
+      "similarity": 0.8355237651678924,
+      "code1": "shoplifting_alcohol_caught_and_returned",
+      "code2": "shoplifting_clothing_caught_and_returned"
+    },
+    {
+      "similarity": 0.832862641593165,
+      "code1": "shoplifting_alcohol_with_accomplice",
+      "code2": "shoplifting_alcohol_and_attempted_theft"
+    },
+    {
+      "similarity": 0.8325207546868258,
+      "code1": "shoplifting_gillette_razor_caught",
+      "code2": "shoplifting_razors"
+    },
+    {
+      "similarity": 0.8313934067907328,
+      "code1": "shoplifting_alcohol_with_accomplice",
+      "code2": "shoplifting_alcohol_under_clothing"
+    },
+    {
+      "similarity": 0.8290369859301167,
+      "code1": "shoplifting_liquor",
+      "code2": "shoplifting_alcohol_caught_and_returned"
+    },
+    {
+      "similarity": 0.8290304788862594,
+      "code1": "shoplifting_alcohol_returned",
+      "code2": "shoplifting_liquor"
+    },
+    {
+      "similarity": 0.828158222868606,
+      "code1": "theft_of_bikes_using_tools",
+      "code2": "theft_of_bicycle"
+    },
+    {
+      "similarity": 0.8268298033969732,
+      "code1": "shoplifting_alcohol_mixed",
+      "code2": "shoplifting_alcohol_caught_and_returned"
+    },
+    {
+      "similarity": 0.8261175060006307,
+      "code1": "shoplifting_alcohol_under_clothing",
+      "code2": "shoplifting_alcohol_caught_and_returned"
+    },
+    {
+      "similarity": 0.826108277859144,
+      "code1": "shoplifting_alcohol_with_accomplice",
+      "code2": "shoplifting_alcohol_mixed"
+    },
+    {
+      "similarity": 0.8248359821716328,
+      "code1": "shoplifting_alcohol_returned",
+      "code2": "shoplifting_alcohol_under_clothing"
+    },
+    {
+      "similarity": 0.8245107868100007,
+      "code1": "theft_of_bicycle_from_shared_space",
+      "code2": "theft_of_unsecured_bicycle_in_public"
+    },
+    {
+      "similarity": 0.8242209101466452,
+      "code1": "theft_mobile_phones_from_office",
+      "code2": "theft_mobile_phone_from_workplace"
+    },
+    {
+      "similarity": 0.8236176725041005,
+      "code1": "theft_from_residence_money",
+      "code2": "theft_money_from_temporary_residence"
+    },
+    {
+      "similarity": 0.8235991841761012,
+      "code1": "shoplifting_alcohol_with_accomplice",
+      "code2": "shoplifting_liquor"
+    },
+    {
+      "similarity": 0.8228884910826615,
+      "code1": "theft_money_from_visit",
+      "code2": "theft_money_from_forgetfulness_visit"
+    },
+    {
+      "similarity": 0.8211799590535348,
+      "code1": "shoplifting_alcohol",
+      "code2": "shoplifting_wine"
+    },
+    {
+      "similarity": 0.8210952988385785,
+      "code1": "shoplifting_alcohol_caught_and_returned",
+      "code2": "shoplifting_energy_drinks_caught_and_returned"
+    },
+    {
+      "similarity": 0.8192327829576435,
+      "code1": "theft_of_bicycle_from_shared_space",
+      "code2": "theft_unsecured_bicycle"
+    },
+    {
+      "similarity": 0.8186323464125599,
+      "code1": "shoplifting_alcohol_passing_checkout",
+      "code2": "shoplifting_alcohol_under_clothing"
+    },
+    {
+      "similarity": 0.8171194580370921,
+      "code1": "shoplifting_alcohol_under_clothing",
+      "code2": "shoplifting_alcohol_and_attempted_theft"
+    }
+  ],
+  "similarity_stats": {
+    "mean": 0.5074338609645795,
+    "std": 0.10985028403257902,
+    "min": 0.24581023973058197,
+    "max": 1.0000000000000024
+  }
+}

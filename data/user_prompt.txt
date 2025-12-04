@@ -1,0 +1,26 @@
+OVERALL ANALYSIS DIRECTIONS
+1. What counts as a theme?
+{{THEME}}
+
+2. Is the focus a rich description of the data set, or a detailed account of one particular aspect?
+{{FOCUS}}
+
+3. Inductive versus theoretical thematic analysis?
+{{INDUCTIVE_THEORETICAL}}
+
+4. Semantic or latent themes?
+{{SEMANTIC_LATENT}}
+
+5. What are the research questions?
+{{RESEARCH_QUESTIONS}}
+
+PHASE SPECIFIC DIRECTIONS
+Please, perform Phase {{PHASE_NUM}} of the thematic analysis. {{PHASE_DESCRIPTION}}
+
+{{PHASE_SPECS}}
+
+THE SUBSET OF THE DATA POINTS TO BE ANALYZED
+{{DATA}}
+
+THE EXPECTED OUTPUT
+{{EXPECTED_OUTPUT}}

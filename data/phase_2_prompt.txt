@@ -1,0 +1,90 @@
+THEMATIC ANALYSIS - PHASE 2: GENERATING INITIAL CODES
+
+RESEARCH CONTEXT
+You are performing Phase 2 of a thematic analysis on Czech crime cases for sentencing typology research. The goal is to create behavioral descriptions of modus operandi - how offenders committed their crimes.
+
+ACADEMIC EXPECTATIONS FOR PHASE 2
+This phase should produce:
+- Comprehensive coding of all meaningful data extracts with systematic labels
+- Rich, diverse set of codes that capture interesting behavioral features across the dataset
+- Semantic-level codes that describe explicit content rather than interpretive themes
+- Data-driven codes that emerge from the content, not imposed theoretical frameworks
+- Inclusive coding that captures potentially relevant features for later theme development
+
+EXPECTED OUTCOME
+- Diverse range of behavioral modus operandi codes (methods, targets, contexts, victim characteristics)
+- Systematic coverage ensuring no important behavioral patterns are missed
+- Codes that will serve as building blocks for theme development in Phase 3
+- Balance between specificity (capturing nuanced differences) and generalizability (allowing pattern recognition)
+
+WHAT TO FOCUS ON WHEN CODING
+When analyzing each crime case, focus on:
+1. VICTIM AUTONOMY IMPACT: What types of rights were infringed and to what extent
+2. METHODS AND MEANS: What specific techniques, tools, or approaches were used
+3. OFFENDER MOTIVATION: Deduce the likely motivation or aim (not directly stated)
+4. CONSEQUENCES: Impact on victim and society
+5. HABITUAL PATTERNS: Whether behavior suggests repeat offending
+
+PHASE 2 CODING INSTRUCTIONS
+- Generate initial codes that capture interesting features of the crime data
+- Codes should describe the most basic meaningful elements of criminal behavior
+- Be systematic and thorough - code for as many potential patterns as possible
+- Keep codes specific and descriptive rather than overly general
+- Use structured underscore format for systematic coding (e.g., "shoplifting_alcohol", "theft_of_bicycle_from_shared_space")
+- Codes should be at a semantic (explicit) level, not interpretive
+- Keep codes concise but descriptive (typically 2-5 words connected by underscores)
+- Use lowercase with underscores to separate words
+
+MULTIPLE CODES PER CASE - PRESERVING ANALYTIC RICHNESS
+Following Braun & Clarke's reflexive thematic analysis and Saldaña's guidance on simultaneous coding:
+
+- **Apply multiple atomic codes per case** to preserve analytic richness (typically 3-4 codes, maximum 5)
+- **One idea per code**: Each code should capture a single distinct idea or facet
+- **Focus on key facets**: Select the most important behavioral elements rather than coding everything
+- **Quality over quantity**: Better to have 3-4 precise, meaningful codes than many redundant ones
+
+EXAMPLE OF MULTIPLE CODING (3-4 focused codes)
+For a case involving bike theft from locked storage + phone theft from restaurant table:
+```json
+"initial_codes": [
+  "bike_theft_locked_communal_storage",
+  "lock_cutting_cable", 
+  "phone_theft_unattended_table",
+  "serial_offending_multiple_incidents"
+]
+```
+
+CRITICAL REQUIREMENTS
+- BE FACTUALLY CORRECT: Only code what is explicitly described in the case data. Do not make assumptions or add details not present in the text.
+- "ONE IDEA PER CODE" APPROACH: Each individual code should focus on a single distinct behavioral element.
+- MULTIPLE CODES ENCOURAGED: Apply several codes to capture different facets (method, location, target, security status, etc.)
+- Prioritize comprehensive coverage of all meaningful behavioral elements
+
+CONSISTENCY REQUIREMENTS
+Below are existing codes from previously analyzed cases. When creating codes:
+- Consider reusing existing codes if they accurately capture the criminal behavior
+- Maintain consistent naming conventions and structure when possible
+- Create new codes when the behavior has meaningful differences from existing patterns
+- Balance consistency with capturing the full range of criminal behaviors in the data
+
+NOTE: While consistency is important, don't force cases into inappropriate existing codes. If the criminal behavior has distinct characteristics, create a new appropriate code.
+
+EXISTING CODES FROM PREVIOUS ANALYSIS
+{{INITIAL_CODES}}
+
+CRIME CASE TO ANALYZE
+{{DATA}}
+
+OUTPUT REQUIREMENTS
+Provide your response as a JSON object with this exact structure:
+{
+    "case_id": ["initial_code_1", "initial_code_2", "initial_code_3"]
+}
+
+IMPORTANT:
+- Output ONLY valid JSON - no explanations, no additional text
+- Use the exact case ID provided in the data
+- Create an ARRAY of 3-5 initial codes per case (aim for 3-4, maximum 5)
+- Each code should be a systematic lowercase code with underscores separating words
+- Focus on the most important behavioral elements rather than coding every detail
+- Examples: ["shoplifting_alcohol", "location_grocery_store", "concealment_in_clothing"] 

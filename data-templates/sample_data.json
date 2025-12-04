@@ -1,0 +1,19 @@
+{
+  "case_001": {
+    "id": "case_001",
+    "plny_skutek_short": "This is an example case description. Replace this with your actual qualitative data text. The text should be detailed enough for meaningful analysis."
+  },
+  "case_002": {
+    "id": "case_002",
+    "plny_skutek_short": "Another example case. Each case should have a unique ID and the text you want to analyze. You can add other metadata fields as needed."
+  },
+  "case_003": {
+    "id": "case_003",
+    "plny_skutek_short": "Third example demonstrating the data format. The system will analyze these texts and generate themes.",
+    "optional_metadata_field": "You can add any additional fields",
+    "date": "2025-01-01",
+    "category": "example"
+  }
+}
+
+

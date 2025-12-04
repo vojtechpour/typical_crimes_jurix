@@ -1,0 +1,126 @@
+/* === TOKENS =============================================================== */
+:root {
+  /* Brand & Accent */
+  --brand-50: #eef2ff; /* Indigo 50 */
+  --brand-100: #e0e7ff;
+  --brand-200: #c7d2fe;
+  --brand-300: #a5b4fc;
+  --brand-400: #818cf8;
+  --brand-500: #6366f1; /* Primary */
+  --brand-600: #4f46e5;
+  --brand-700: #4338ca;
+  --brand-800: #3730a3;
+  --brand-900: #312e81;
+
+  /* Secondary accent (teal) */
+  --secondary-400: #2dd4bf;
+  --secondary-500: #14b8a6;
+  --secondary-600: #0d9488;
+
+  --accent-400: #fbbf24; /* restrained use: progress only */
+  --accent-500: #f59e0b;
+  --accent-600: #d97706;
+
+  /* Gradients */
+  --gradient-brand: linear-gradient(
+    135deg,
+    var(--brand-600),
+    var(--secondary-500)
+  );
+
+  /* Semantic */
+  --success-500: #16a34a;
+  --warning-500: #d97706;
+  --danger-500: #dc2626;
+  --info-500: #0ea5e9;
+
+  /* Neutral / surfaces */
+  --bg: #f8fafc; /* page */
+  --surface-1: #ffffff; /* cards/panels */
+  --surface-2: #f1f5f9; /* emphasized backgrounds */
+  --border: #e2e8f0;
+  --shadow-color: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.05);
+
+  /* Text */
+  --text-strong: #0f172a;
+  --text: #1f2937;
+  --text-muted: #475569;
+
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, Segoe UI,
+    Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+    "Segoe UI Emoji";
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Sizing & spacing */
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --ring: 2px solid var(--brand-400);
+  --ring-offset: 2px;
+
+  /* Density (1 = comfortable, 0.85 = compact) */
+  --density: 1;
+
+  /* Z-index scale */
+  --z-nav: 30;
+  --z-header: 40;
+  --z-toast: 50;
+  --z-modal: 60;
+
+  /* Backwards-compat tokens for existing components */
+  --container-max: 1280px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1220;
+    --surface-1: #0f172a;
+    --surface-2: #111827;
+    --border: #1f2937;
+    --shadow-color: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.25);
+
+    --text-strong: #e5e7eb;
+    --text: #e5e7eb;
+    --text-muted: #9ca3af;
+
+    --brand-500: #8ea2ff;
+    --brand-600: #7b8fff;
+  }
+}
+
+/* Manual theme override */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  /* Re-apply light tokens explicitly in case the system is dark */
+  --bg: #f8fafc;
+  --surface-1: #ffffff;
+  --surface-2: #f1f5f9;
+  --border: #e2e8f0;
+  --shadow-color: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.05);
+  --text-strong: #0f172a;
+  --text: #1f2937;
+  --text-muted: #475569;
+}
+
+/* Remove density option globally by keeping default --density */

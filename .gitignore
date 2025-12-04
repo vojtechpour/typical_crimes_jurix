@@ -1,51 +1,43 @@
-# macOS
-.DS_Store
+# Dependencies
+node_modules/
+.pnpm-store/
 
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.so
-*.egg-info/
-.eggs/
-.venv/
-venv/
-.mypy_cache/
-.pytest_cache/
-.ipynb_checkpoints/
-.coverage
-htmlcov/
+# Build outputs
 dist/
 build/
+.turbo/
 
-# Environment and secrets
+# Environment files
 .env
-.env.*
-.envrc
+.env.local
+.env.*.local
+config.json
 
-# Node / React app
-crime-themes-explorer/node_modules/
-crime-themes-explorer/build/
-crime-themes-explorer/.next/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Data and artifacts (avoid pushing large/sensitive data)
-data/
-uploads/
-analysis_results/
-*.mp4
-*.log
-*.xlsx
-*.png
-*.pptx
-
-# IDE/editor
-.vscode/
+# IDE
 .idea/
+.vscode/
 *.swp
+*.swo
 
+# OS
+.DS_Store
+Thumbs.db
 
+# Logs
+*.log
+logs/
+
+# Data files (keep structure but not data)
+uploads/*.json
+data/*.json
+!data-templates/
+
+# Test coverage
+coverage/
+
+# Python (legacy - will be removed)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
