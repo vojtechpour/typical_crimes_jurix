@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import "./App.css";
 import "./design-system.css";
 import "./index.css";
+import "./App.css";
 
 import DataBrowser from "./components/DataBrowser";
 import ScriptRunner from "./components/ScriptRunner"; // Phase 2
