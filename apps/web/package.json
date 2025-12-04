@@ -1,0 +1,27 @@
+{
+  "name": "@crime-themes/web",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@dnd-kit/core": "^6.1.0",
+    "@crime-themes/shared": "workspace:*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^5.5.0"
+  },
+  "devDependencies": {
+    "@crime-themes/tsconfig": "workspace:*",
+    "@types/react": "^18.3.24",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
+  },
+  "scripts": {
+    "dev": "vite --port 3005",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  }
+}
+

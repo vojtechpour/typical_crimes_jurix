@@ -1,0 +1,9 @@
+Please, output the JSON with the structure shown below. The JSON should assign a candidate theme to each of the provided data points.
+
+{
+    "<ID>": "<CANDIDATE_THEME>",
+    "<ID>": "<CANDIDATE_THEME>",
+    ...
+}
+
+Only output valid JSON object with ids as keys and candidate themes as associated values (both are strings). Nothing else - no explanations, no preface or additional text. Always return a valid JSON object; even if only single data point is provided. There will be exactly one key-value pair per data point with the id matching the ID of the data point (string). Specifically, avoid splitting single ID into multiple ones by appending _# suffixes. Simply, always use a single corresonding ID.
