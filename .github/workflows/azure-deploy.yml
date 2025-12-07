@@ -8,13 +8,13 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: '20.x'
-  PNPM_VERSION: '9'
+  NODE_VERSION: "20.x"
+  PNPM_VERSION: "9"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -39,24 +39,24 @@ jobs:
       - name: Create deployment package
         run: |
           mkdir -p deploy
-          
+
           # Copy API dist (server.js and other compiled files)
           cp -r apps/api/dist/* deploy/
-          
+
           # Copy web dist into deploy/web (server looks for it here in production)
           mkdir -p deploy/web
           cp -r apps/web/dist/* deploy/web/
-          
+
           # Copy shared packages (compiled) with their package.json
           mkdir -p deploy/node_modules/@crime-themes/ai-analysis
           mkdir -p deploy/node_modules/@crime-themes/shared
-          
+
           cp -r packages/ai-analysis/dist/* deploy/node_modules/@crime-themes/ai-analysis/
           cp packages/ai-analysis/package.json deploy/node_modules/@crime-themes/ai-analysis/
-          
+
           cp -r packages/shared/dist/* deploy/node_modules/@crime-themes/shared/
           cp packages/shared/package.json deploy/node_modules/@crime-themes/shared/
-          
+
           # Create a production package.json for Azure
           cat > deploy/package.json << 'PKGJSON'
           {
@@ -81,12 +81,12 @@ jobs:
             }
           }
           PKGJSON
-          
+
           # Install production dependencies
           cd deploy
           npm install --omit=dev
           cd ..
-          
+
           # Show deployment structure for debugging
           echo "=== Deployment Structure ==="
           ls -la deploy/
@@ -105,11 +105,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
+
     environment:
-      name: 'production'
+      name: "production"
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-      
+
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4

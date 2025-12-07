@@ -611,9 +611,18 @@ const themeToolDeclarations: FunctionDeclaration[] = [
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
-        theme1: { type: SchemaType.STRING, description: "First theme to merge" },
-        theme2: { type: SchemaType.STRING, description: "Second theme to merge" },
-        newName: { type: SchemaType.STRING, description: "Name for the merged theme" },
+        theme1: {
+          type: SchemaType.STRING,
+          description: "First theme to merge",
+        },
+        theme2: {
+          type: SchemaType.STRING,
+          description: "Second theme to merge",
+        },
+        newName: {
+          type: SchemaType.STRING,
+          description: "Name for the merged theme",
+        },
       },
       required: ["theme1", "theme2", "newName"],
     },
@@ -624,8 +633,14 @@ const themeToolDeclarations: FunctionDeclaration[] = [
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
-        oldName: { type: SchemaType.STRING, description: "Current name of the theme" },
-        newName: { type: SchemaType.STRING, description: "New name for the theme" },
+        oldName: {
+          type: SchemaType.STRING,
+          description: "Current name of the theme",
+        },
+        newName: {
+          type: SchemaType.STRING,
+          description: "New name for the theme",
+        },
         themeType: {
           type: SchemaType.STRING,
           enum: ["group", "candidate"],
@@ -681,9 +696,15 @@ const claudeToolDeclarations = [
     input_schema: {
       type: "object" as const,
       properties: {
-        candidateTheme: { type: "string", description: "The candidate theme to move" },
+        candidateTheme: {
+          type: "string",
+          description: "The candidate theme to move",
+        },
         fromGroup: { type: "string", description: "Source theme group name" },
-        toGroup: { type: "string", description: "Destination theme group name" },
+        toGroup: {
+          type: "string",
+          description: "Destination theme group name",
+        },
       },
       required: ["candidateTheme", "fromGroup", "toGroup"],
     },
@@ -709,18 +730,26 @@ const claudeToolDeclarations = [
       properties: {
         oldName: { type: "string", description: "Current name of the theme" },
         newName: { type: "string", description: "New name for the theme" },
-        themeType: { type: "string", enum: ["group", "candidate"], description: "Type of theme" },
+        themeType: {
+          type: "string",
+          enum: ["group", "candidate"],
+          description: "Type of theme",
+        },
       },
       required: ["oldName", "newName", "themeType"],
     },
   },
   {
     name: "create_theme_group",
-    description: "Creates a new theme group/category to organize candidate themes",
+    description:
+      "Creates a new theme group/category to organize candidate themes",
     input_schema: {
       type: "object" as const,
       properties: {
-        groupName: { type: "string", description: "Name for the new theme group" },
+        groupName: {
+          type: "string",
+          description: "Name for the new theme group",
+        },
       },
       required: ["groupName"],
     },
@@ -731,8 +760,15 @@ const claudeToolDeclarations = [
     input_schema: {
       type: "object" as const,
       properties: {
-        themeName: { type: "string", description: "Name of the theme to delete" },
-        themeType: { type: "string", enum: ["group", "candidate"], description: "Type of theme" },
+        themeName: {
+          type: "string",
+          description: "Name of the theme to delete",
+        },
+        themeType: {
+          type: "string",
+          enum: ["group", "candidate"],
+          description: "Type of theme",
+        },
       },
       required: ["themeName", "themeType"],
     },
