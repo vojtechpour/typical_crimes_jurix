@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.turbo/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+config.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Data files (keep structure but not data)
+uploads/*.json
+data/*.json
+!data-templates/
+
+# Test coverage
+coverage/
+
+# Python (legacy - will be removed)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Excel and other data formats
+*.xlsx
+*.xls
+
+# Output files (may contain case data)
+data/*_output.txt

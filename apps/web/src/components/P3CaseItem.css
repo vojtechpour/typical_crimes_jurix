@@ -1,0 +1,335 @@
+/* P3CaseItem - Clean Academic Theme */
+
+.case-metadata {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.case-metadata .case-id {
+  font-weight: 600;
+  color: var(--primary-700);
+  font-size: 14px;
+}
+
+.case-metadata .generation-time {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.themes-tags-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.theme-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.theme-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.source-badge.p3 {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.source-badge.p3b {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.theme-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: var(--radius-m);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.theme-tag.candidate-theme {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.theme-tag.final-theme {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.case-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.item-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.regenerate-btn,
+.add-code-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  transition: all 150ms ease;
+}
+
+.regenerate-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--primary-300);
+  color: var(--primary-600);
+}
+
+.add-code-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--primary-300);
+  color: var(--primary-600);
+}
+
+.codes-header h6 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Theme editing styles */
+.theme-display-container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.theme-edit-container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+}
+
+.theme-edit-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid var(--primary-400);
+  border-radius: var(--radius-m);
+  font-size: 13px;
+  outline: none;
+  background: var(--surface-1);
+  color: var(--text);
+}
+
+.theme-edit-input:focus {
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.theme-edit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.theme-save-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-600);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.theme-save-btn:hover:not(:disabled) {
+  background: var(--primary-700);
+}
+
+.theme-save-btn:disabled {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.theme-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger-500);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 8px 12px;
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.theme-cancel-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.theme-actions {
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.theme-display-container:hover .theme-actions {
+  opacity: 1;
+}
+
+.theme-edit-btn,
+.theme-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: all 150ms ease;
+}
+
+.theme-edit-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--primary-300);
+  color: var(--primary-600);
+}
+
+.theme-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--danger-500);
+}
+
+.add-theme-buttons {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.add-theme-btn {
+  background: transparent;
+  border: 1px dashed var(--border);
+  padding: 8px 14px;
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: all 150ms ease;
+}
+
+.add-theme-btn:hover {
+  border-color: var(--primary-300);
+  color: var(--primary-600);
+  background: var(--primary-50);
+}
+
+.add-theme-btn.candidate:hover {
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.add-theme-btn.final:hover {
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.05);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .item-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .item-actions {
+    justify-content: flex-end;
+  }
+
+  .case-metadata {
+    gap: var(--space-2);
+  }
+
+  .theme-tag {
+    max-width: 180px;
+  }
+}
