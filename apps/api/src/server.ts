@@ -28,7 +28,11 @@ import {
   createPhase4Analysis,
   parseJsonResponse,
 } from "@crime-themes/ai-analysis";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  SchemaType,
+  type FunctionDeclaration,
+} from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AIProvider } from "@crime-themes/shared";
 
@@ -158,7 +162,7 @@ function getProviderFromModel(model?: string): AIProvider {
 // ============================================
 
 interface ActiveProcess {
-  type: "p2" | "p3" | "p4";
+  type: "p2" | "p3" | "p3b" | "p4";
   startTime: Date;
   aborted: boolean;
 }
@@ -577,24 +581,24 @@ Requirements:
 // AI Theme Tools - Function Calling Endpoint
 // ============================================
 
-// Theme tool function declarations for Gemini/Claude
-const themeToolDeclarations = [
+// Theme tool function declarations for Gemini
+const themeToolDeclarations: FunctionDeclaration[] = [
   {
     name: "move_theme",
     description: "Moves a candidate theme from one theme group to another",
     parameters: {
-      type: "object",
+      type: SchemaType.OBJECT,
       properties: {
         candidateTheme: {
-          type: "string",
+          type: SchemaType.STRING,
           description: "The candidate theme to move",
         },
         fromGroup: {
-          type: "string",
+          type: SchemaType.STRING,
           description: "Source theme group name",
         },
         toGroup: {
-          type: "string",
+          type: SchemaType.STRING,
           description: "Destination theme group name",
         },
       },
@@ -605,11 +609,11 @@ const themeToolDeclarations = [
     name: "merge_themes",
     description: "Merges two candidate themes into one with a new name",
     parameters: {
-      type: "object",
+      type: SchemaType.OBJECT,
       properties: {
-        theme1: { type: "string", description: "First theme to merge" },
-        theme2: { type: "string", description: "Second theme to merge" },
-        newName: { type: "string", description: "Name for the merged theme" },
+        theme1: { type: SchemaType.STRING, description: "First theme to merge" },
+        theme2: { type: SchemaType.STRING, description: "Second theme to merge" },
+        newName: { type: SchemaType.STRING, description: "Name for the merged theme" },
       },
       required: ["theme1", "theme2", "newName"],
     },
@@ -618,12 +622,12 @@ const themeToolDeclarations = [
     name: "rename_theme",
     description: "Renames a theme group or candidate theme",
     parameters: {
-      type: "object",
+      type: SchemaType.OBJECT,
       properties: {
-        oldName: { type: "string", description: "Current name of the theme" },
-        newName: { type: "string", description: "New name for the theme" },
+        oldName: { type: SchemaType.STRING, description: "Current name of the theme" },
+        newName: { type: SchemaType.STRING, description: "New name for the theme" },
         themeType: {
-          type: "string",
+          type: SchemaType.STRING,
           enum: ["group", "candidate"],
           description:
             "Type of theme: 'group' for theme groups, 'candidate' for candidate themes",
@@ -637,10 +641,10 @@ const themeToolDeclarations = [
     description:
       "Creates a new theme group/category to organize candidate themes",
     parameters: {
-      type: "object",
+      type: SchemaType.OBJECT,
       properties: {
         groupName: {
-          type: "string",
+          type: SchemaType.STRING,
           description: "Name for the new theme group",
         },
       },
@@ -651,18 +655,84 @@ const themeToolDeclarations = [
     name: "delete_theme",
     description: "Deletes a candidate theme or theme group",
     parameters: {
-      type: "object",
+      type: SchemaType.OBJECT,
       properties: {
         themeName: {
-          type: "string",
+          type: SchemaType.STRING,
           description: "Name of the theme to delete",
         },
         themeType: {
-          type: "string",
+          type: SchemaType.STRING,
           enum: ["group", "candidate"],
           description:
             "Type of theme: 'group' for theme groups, 'candidate' for candidate themes",
         },
+      },
+      required: ["themeName", "themeType"],
+    },
+  },
+];
+
+// Claude tool format (uses string literals)
+const claudeToolDeclarations = [
+  {
+    name: "move_theme",
+    description: "Moves a candidate theme from one theme group to another",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        candidateTheme: { type: "string", description: "The candidate theme to move" },
+        fromGroup: { type: "string", description: "Source theme group name" },
+        toGroup: { type: "string", description: "Destination theme group name" },
+      },
+      required: ["candidateTheme", "fromGroup", "toGroup"],
+    },
+  },
+  {
+    name: "merge_themes",
+    description: "Merges two candidate themes into one with a new name",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        theme1: { type: "string", description: "First theme to merge" },
+        theme2: { type: "string", description: "Second theme to merge" },
+        newName: { type: "string", description: "Name for the merged theme" },
+      },
+      required: ["theme1", "theme2", "newName"],
+    },
+  },
+  {
+    name: "rename_theme",
+    description: "Renames a theme group or candidate theme",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        oldName: { type: "string", description: "Current name of the theme" },
+        newName: { type: "string", description: "New name for the theme" },
+        themeType: { type: "string", enum: ["group", "candidate"], description: "Type of theme" },
+      },
+      required: ["oldName", "newName", "themeType"],
+    },
+  },
+  {
+    name: "create_theme_group",
+    description: "Creates a new theme group/category to organize candidate themes",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        groupName: { type: "string", description: "Name for the new theme group" },
+      },
+      required: ["groupName"],
+    },
+  },
+  {
+    name: "delete_theme",
+    description: "Deletes a candidate theme or theme group",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        themeName: { type: "string", description: "Name of the theme to delete" },
+        themeType: { type: "string", enum: ["group", "candidate"], description: "Type of theme" },
       },
       required: ["themeName", "themeType"],
     },
@@ -768,13 +838,6 @@ Be conversational and helpful. Ask clarifying questions if needed.`;
         apiKey: process.env["ANTHROPIC_API_KEY"],
       });
 
-      // Convert to Claude tool format
-      const claudeTools = themeToolDeclarations.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.parameters,
-      }));
-
       // Build conversation history for Claude
       const messages: Array<{ role: "user" | "assistant"; content: string }> =
         [];
@@ -796,7 +859,7 @@ Be conversational and helpful. Ask clarifying questions if needed.`;
         model: modelToUse,
         max_tokens: 1024,
         system: systemPrompt,
-        tools: claudeTools,
+        tools: claudeToolDeclarations,
         messages,
       });
 
