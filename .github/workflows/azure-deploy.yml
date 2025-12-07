@@ -44,15 +44,31 @@ jobs:
           mkdir -p deploy/web
           cp -r apps/web/dist/* deploy/web/
 
-          # Copy shared packages (compiled) with their package.json
+          # Copy shared packages (compiled) with simplified package.json (no workspace: refs)
           mkdir -p deploy/node_modules/@crime-themes/ai-analysis
           mkdir -p deploy/node_modules/@crime-themes/shared
 
           cp -r packages/ai-analysis/dist/* deploy/node_modules/@crime-themes/ai-analysis/
-          cp packages/ai-analysis/package.json deploy/node_modules/@crime-themes/ai-analysis/
+          cat > deploy/node_modules/@crime-themes/ai-analysis/package.json << 'EOF'
+          {
+            "name": "@crime-themes/ai-analysis",
+            "version": "1.0.0",
+            "type": "module",
+            "main": "./index.js",
+            "types": "./index.d.ts"
+          }
+          EOF
 
           cp -r packages/shared/dist/* deploy/node_modules/@crime-themes/shared/
-          cp packages/shared/package.json deploy/node_modules/@crime-themes/shared/
+          cat > deploy/node_modules/@crime-themes/shared/package.json << 'EOF'
+          {
+            "name": "@crime-themes/shared",
+            "version": "1.0.0",
+            "type": "module",
+            "main": "./index.js",
+            "types": "./index.d.ts"
+          }
+          EOF
 
           # Create a production package.json for Azure
           cat > deploy/package.json << 'PKGJSON'
