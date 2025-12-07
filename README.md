@@ -1,19 +1,22 @@
 # Packaging Thematic Analysis as an AI Workflow for Legal Research
 
-> **Paper:** Presented at the AI4A2J Workshop at JURIX 2025, December 9, 2025, Turin, Italy  
-> **Author:** Vojtěch Pour (Faculty of Law, Charles University, Prague)
+> **Paper:** Presented at JURIX 2025, Turin, Italy  
+> **Author:** Vojtěch Pour (Faculty of Law, Charles University, Prague)  
+> **Contact:** vojtech.pour@gmail.com
 
 ## Abstract
 
-This work-in-progress paper introduces a system that operationalizes thematic analysis for legal research as a reproducible, agentic workflow. Focusing first on case law, researchers upload a JSON corpus keyed by case identifiers, and the system maps plain-language intent (scope, granularity, focus, presentation) onto a fixed sequence of analysis phases orchestrated from the frontend. A simple web interface streams intermediate outputs for review, while automation is balanced with optional human checkpoints and reversible edits. The workflow aims to be model-agnostic and supports multilingual legal texts. On representative case-law datasets, the prototype completes end-to-end runs that produce stable codebooks and candidate themes without ad-hoc prompt retuning, and it reduces manual stitching by automating cross-document aggregation. Two user-facing artifacts are generated: an enriched JSON with codes and themes, and a compact CSV or HTML report for rapid inspection and downstream use. Overall, the system lowers time to first theme, improves refinement safety, and increases portability across jurisdictions and languages, moving legal-domain thematic analysis from one-off prompting toward a reviewable, reusable practice with a clear path to statutes, regulations, and briefs.
+This work-in-progress paper introduces a reusable system that operationalizes thematic analysis for legal research as a reproducible, agentic workflow. Researchers upload a JSON corpus keyed by case identifiers; plain-language intent (scope, granularity, focus, presentation) is mapped to a fixed sequence of phases orchestrated from the frontend. A lightweight web UI streams intermediate outputs and offers optional checkpoints with reversible edits. The workflow is model-agnostic, multilingual, and stabilizes codebooks and candidate themes without ad-hoc prompt retuning on representative case-law datasets.
+
+The system packages and exposes in a frontend the approach explored by Drápal, Westermann, and Šavelka. Overall, it lowers time-to-first-theme, improves refinement safety, and increases portability across jurisdictions and languages.
 
 ## Citation
 
 ```bibtex
-@inproceedings{Pour_JURIX2025_AI4A2J,
+@inproceedings{Pour_JURIX2025,
   author    = {Pour, Vojtěch},
   title     = {Packaging Thematic Analysis as an AI Workflow for Legal Research},
-  booktitle = {Proceedings of the AI4A2J Workshop at JURIX 2025},
+  booktitle = {Proceedings of JURIX 2025},
   year      = {2025},
   address   = {Turin, Italy}
 }
@@ -31,15 +34,15 @@ This work-in-progress paper introduces a system that operationalizes thematic an
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/typical-crimes.git
-cd typical-crimes
+git clone https://github.com/vojtechpour/typical_crimes_jurix.git
+cd typical_crimes_jurix
 
 # Install dependencies
 pnpm install
 
-# Copy environment file and add your API keys
-cp .env.example .env
-# Edit .env with your API key(s)
+# Create environment file and add your API keys
+echo "OPENAI_API_KEY=your-key-here" > .env
+# Or use GEMINI_API_KEY or ANTHROPIC_API_KEY
 
 # Start development server
 pnpm dev
@@ -47,37 +50,38 @@ pnpm dev
 
 The frontend runs on `http://localhost:3005` and the API on `http://localhost:9000`.
 
-## Pipeline Phases
+## Workflow Phases
 
-The system implements the Braun & Clarke thematic analysis methodology through four sequential phases:
+The frontend orchestrates thematic analysis phases P2→P3→P3b→P4 with lightweight checks, explicit checkpoints, and cross-document aggregation to stabilize codebooks and candidate themes.
 
 ```
-Raw Data → P2 (Initial Codes) → P3 (Candidate Themes) → P3b (Finalize) → P4 (Assign Themes) → Themed Dataset
+Upload JSON → Data Explorer → P2 (Initial Codes) → P3 (Candidate Themes) → P3b (Final Themes) → P4 (Assign Themes)
 ```
 
-| Phase   | Name             | Description                                               |
-| ------- | ---------------- | --------------------------------------------------------- |
-| **P2**  | Initial Codes    | Generate initial codes from case descriptions (per case)  |
-| **P3**  | Candidate Themes | Derive candidate themes by aggregating codes across cases |
-| **P3b** | Finalize Themes  | Merge, split, and rename themes through human curation    |
-| **P4**  | Assign Themes    | Apply the finalized theme set back to all cases           |
+### Modules
+
+| Module | Phase | Description |
+|--------|-------|-------------|
+| **Data & Theme Explorer** | Pre-flight | Upload JSON keyed by `case_id`; preview schema and per-case text; quality panel flags duplicates, missing fields, and token-length outliers |
+| **Initial Codes** | P2 | Per-case code pills with Regenerate/Add/Edit; optional user-supplied seed codes; adjustable code granularity; quick CSV/HTML exports and progress tracking |
+| **Candidate Themes** | P3 | Cluster-and-label codes across cases; themes stream progressively with short descriptions and evidence snippets; automatic consolidation with optional user regrouping |
+| **Final Themes** | P3b | Merge/split/rename/move operations with audit-tracked edits; finalize the theme set |
+| **Assign Final Themes** | P4 | Apply the final theme set across all cases with thresholds and summaries; export enriched JSON and compact reports |
+
+### User Control Over AI Outputs
+
+- **Model selector**: Choose from GPT-4o, Claude, and Gemini families
+- **Quick instruction pills**: Pre-configured prompts for common adjustments
+- **Free-form instruction box**: Custom instructions in Phase 2
+- **Per-case dialogs**: Regenerate and "Add more codes" accept custom instructions
+- **Theme Assistant panel**: Conversational requests with provider-dependent toggles for reasoning effort and verbosity
 
 ### Human-in-the-Loop Checkpoints
 
 - After **P2**: Review and edit initial codes at case level
-- After **P3b**: Curate themes (merge/split/rename) before final assignment
+- After **P3**: Curate candidate themes before finalization
+- After **P3b**: Final approval of theme set before assignment
 - All edits are reversible with audit logging
-
-## Prompt Engineering & Methodological Mapping
-
-This workflow implements a **Chain-of-Thought (CoT)** approach designed to mirror the reflexive phases of Thematic Analysis (Braun & Clarke, 2006). We decouple the LLM interactions to prevent context bleeding and hallucination:
-
-- **Phase 2 (Initial Codes):** Uses `data/phase_2_prompt.txt`. Restricted to distinct code generation; prevents premature aggregation to preserve granularity.
-- **Phase 3 (Candidate Themes):** Uses `data/phase_3_prompt.txt`. Operates on P2 outputs only; strict context window management reduces noise.
-- **Phase 3b (Finalize Themes):** Recursive self-critique; merges/splits/renames themes against the original dataset.
-- **Phase 4 (Assign Themes):** Uses `data/phase_4_prompt.txt`. Applies the finalized theme set back to all cases; ensures consistent labeling across the corpus.
-
-See `data/system_prompt.txt` for the base system prompt grounded in Braun & Clarke's checklist for good thematic analysis.
 
 ## Data Format
 
@@ -98,10 +102,7 @@ The system expects a JSON file keyed by case identifiers:
 }
 ```
 
-### Sample Data
-
-- **Schema example:** See [`data-templates/sample_data.json`](data-templates/sample_data.json)
-- **Fictional test cases:** See [`data-templates/dummy_cases.json`](data-templates/dummy_cases.json) — 15 obviously fictional cases demonstrating the full schema progression (raw → codes → themes)
+Users may begin at any phase and may bring annotated or synthetic data for earlier steps (for example, jumping directly to P3 with an existing codebook).
 
 ### Output Format
 
@@ -124,14 +125,13 @@ After processing, cases are enriched with analysis fields:
 **No real data is included in this repository.** You can:
 
 1. Use the in-app mockup data generator
-2. Load the fictional test cases from `data-templates/dummy_cases.json`
-3. Bring your own JSON corpus
+2. Bring your own JSON corpus
 
 If working with sensitive legal data, ensure compliance with applicable privacy regulations (e.g., GDPR for EU jurisdictions).
 
 ## Architecture
 
-This is a TypeScript monorepo using [Turborepo](https://turbo.build/):
+TypeScript monorepo using [Turborepo](https://turbo.build/):
 
 ```
 ├── apps/
@@ -141,8 +141,6 @@ This is a TypeScript monorepo using [Turborepo](https://turbo.build/):
 │   ├── ai-analysis/  # AI provider integrations & analysis logic
 │   ├── shared/       # Shared types and constants
 │   └── tsconfig/     # Shared TypeScript configurations
-├── data/             # Prompt templates
-└── data-templates/   # Sample data schemas
 ```
 
 ## Tech Stack
@@ -151,50 +149,41 @@ This is a TypeScript monorepo using [Turborepo](https://turbo.build/):
 - **Backend:** Express, Node.js 20+, TypeScript
 - **AI Providers:** OpenAI GPT-4o, Google Gemini, Anthropic Claude
 - **Monorepo:** Turborepo, pnpm
+- **Deployment:** Azure Web Apps
 
 ## Environment Variables
 
-| Variable            | Description                             | Required             |
-| ------------------- | --------------------------------------- | -------------------- |
-| `OPENAI_API_KEY`    | OpenAI API key                          | One of these         |
-| `GEMINI_API_KEY`    | Google Gemini API key                   | is required          |
-| `ANTHROPIC_API_KEY` | Anthropic Claude API key                |                      |
-| `MODEL_PROVIDER`    | Default provider (openai/gemini/claude) | No (default: gemini) |
-| `PORT`              | API server port                         | No (default: 9000)   |
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `OPENAI_API_KEY` | OpenAI API key | One of these |
+| `GEMINI_API_KEY` | Google Gemini API key | is required |
+| `ANTHROPIC_API_KEY` | Anthropic Claude API key | |
+| `MODEL_PROVIDER` | Default provider (openai/gemini/claude) | No (default: gemini) |
+| `PORT` | API server port | No (default: 9000) |
 
-## Reproducing Results
+## Reproducibility
 
-### Running the Full Pipeline
-
-```bash
-# 1. Start the application
-pnpm dev
-
-# 2. Upload your JSON data file via the web interface
-
-# 3. Run each phase sequentially:
-#    - Navigate to "Initial Codes (P2)" tab → Start analysis
-#    - Navigate to "Themes (P3/P3b)" tab → Start theme generation
-#    - Navigate to "Assign Themes (P4)" tab → Assign themes to all cases
-
-# 4. Export results as CSV or HTML
-```
-
-### Note on Reproducibility
-
-Due to the stochastic nature of LLM outputs, exact reproduction of specific codes and themes may vary between runs. The workflow is designed to produce _stable and comparable_ results rather than identical outputs. For research reproducibility:
+Due to the stochastic nature of LLM outputs, exact reproduction of specific codes and themes may vary between runs. The workflow produces _stable and comparable_ results rather than identical outputs. For research reproducibility:
 
 - Document the model and version used (e.g., `gpt-4o-2024-08-06`)
 - Save intermediate outputs at each phase
 - Use the audit log for provenance tracking
 
-## Related Work
+## References
 
-This system builds on prior research in AI-assisted legal analysis:
+1. Braun V, Clarke V. Using thematic analysis in psychology. *Qual Res Psychol*. 2006;3(2):77–101. doi:10.1191/1478088706qp063oa.
 
-- Drápal J, Westermann H, Šavelka J. [Using large language models to support thematic analysis in empirical legal studies](https://arxiv.org/abs/2310.18729). arXiv:2310.18729; 2023.
-- Braun V, Clarke V. Using thematic analysis in psychology. _Qual Res Psychol_. 2006;3(2):77–101.
-- Šavelka J, Ashley KD. The unreasonable effectiveness of large language models in zero-shot semantic annotation of legal texts. _Front Artif Intell_. 2023;6:1279794.
+2. Drápal J, Westermann H, Šavelka J. Using large language models to support thematic analysis in empirical legal studies. arXiv:2310.18729; 2023. doi:10.48550/arXiv.2310.18729.
+
+3. Bendová K, Knap T, Černý J, Pour V, Šavelka J, Kvapilíková I, et al. What Are the Facts? Automated Extraction of Court-Established Facts from Criminal-Court Opinions. In: Proceedings of the ASAIL 2025 Workshop at ICAIL. Northwestern Pritzker School of Law, Chicago (IL), USA; 2025.
+
+4. Braun V, Clarke V. Reflecting on reflexive thematic analysis. *Qual Res Sport Exerc Health*. 2019;11(4):589–597. doi:10.1080/2159676X.2019.1628806.
+
+5. Šavelka J, Ashley KD. Segmenting U.S. court decisions into functional and issue specific parts. In: Legal Knowledge and Information Systems – JURIX 2018. IOS Press; 2018. p. 111–120. doi:10.3233/978-1-61499-935-5-111.
+
+6. Westermann H, Šavelka J, Walker VR, Ashley KD, Benyekhlef K. Sentence embeddings and high-speed similarity search for fast computer-assisted annotation of legal documents. In: Legal Knowledge and Information Systems – JURIX 2020. IOS Press; 2020. p. 164–173. doi:10.3233/FAIA200860.
+
+7. Šavelka J, Ashley KD. The unreasonable effectiveness of large language models in zero-shot semantic annotation of legal texts. *Front Artif Intell*. 2023;6:1279794. doi:10.3389/frai.2023.1279794.
 
 ## License
 
