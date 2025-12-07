@@ -60,13 +60,13 @@ Upload JSON → Data Explorer → P2 (Initial Codes) → P3 (Candidate Themes) �
 
 ### Modules
 
-| Module | Phase | Description |
-|--------|-------|-------------|
-| **Data & Theme Explorer** | Pre-flight | Upload JSON keyed by `case_id`; preview schema and per-case text; quality panel flags duplicates, missing fields, and token-length outliers |
-| **Initial Codes** | P2 | Per-case code pills with Regenerate/Add/Edit; optional user-supplied seed codes; adjustable code granularity; quick CSV/HTML exports and progress tracking |
-| **Candidate Themes** | P3 | Cluster-and-label codes across cases; themes stream progressively with short descriptions and evidence snippets; automatic consolidation with optional user regrouping |
-| **Final Themes** | P3b | Merge/split/rename/move operations with audit-tracked edits; finalize the theme set |
-| **Assign Final Themes** | P4 | Apply the final theme set across all cases with thresholds and summaries; export enriched JSON and compact reports |
+| Module                    | Phase      | Description                                                                                                                                                            |
+| ------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Data & Theme Explorer** | Pre-flight | Upload JSON keyed by `case_id`; preview schema and per-case text; quality panel flags duplicates, missing fields, and token-length outliers                            |
+| **Initial Codes**         | P2         | Per-case code pills with Regenerate/Add/Edit; optional user-supplied seed codes; adjustable code granularity; quick CSV/HTML exports and progress tracking             |
+| **Candidate Themes**      | P3         | Cluster-and-label codes across cases; themes stream progressively with short descriptions and evidence snippets; automatic consolidation with optional user regrouping |
+| **Final Themes**          | P3b        | Merge/split/rename/move operations with audit-tracked edits; finalize the theme set                                                                                    |
+| **Assign Final Themes**   | P4         | Apply the final theme set across all cases with thresholds and summaries; export enriched JSON and compact reports                                                     |
 
 ### User Control Over AI Outputs
 
@@ -153,13 +153,13 @@ TypeScript monorepo using [Turborepo](https://turbo.build/):
 
 ## Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `OPENAI_API_KEY` | OpenAI API key | One of these |
-| `GEMINI_API_KEY` | Google Gemini API key | is required |
-| `ANTHROPIC_API_KEY` | Anthropic Claude API key | |
-| `MODEL_PROVIDER` | Default provider (openai/gemini/claude) | No (default: gemini) |
-| `PORT` | API server port | No (default: 9000) |
+| Variable            | Description                             | Required             |
+| ------------------- | --------------------------------------- | -------------------- |
+| `OPENAI_API_KEY`    | OpenAI API key                          | One of these         |
+| `GEMINI_API_KEY`    | Google Gemini API key                   | is required          |
+| `ANTHROPIC_API_KEY` | Anthropic Claude API key                |                      |
+| `MODEL_PROVIDER`    | Default provider (openai/gemini/claude) | No (default: gemini) |
+| `PORT`              | API server port                         | No (default: 9000)   |
 
 ## Reproducibility
 
@@ -171,19 +171,19 @@ Due to the stochastic nature of LLM outputs, exact reproduction of specific code
 
 ## References
 
-1. Braun V, Clarke V. Using thematic analysis in psychology. *Qual Res Psychol*. 2006;3(2):77–101. doi:10.1191/1478088706qp063oa.
+1. Braun V, Clarke V. Using thematic analysis in psychology. _Qual Res Psychol_. 2006;3(2):77–101. doi:10.1191/1478088706qp063oa.
 
 2. Drápal J, Westermann H, Šavelka J. Using large language models to support thematic analysis in empirical legal studies. arXiv:2310.18729; 2023. doi:10.48550/arXiv.2310.18729.
 
 3. Bendová K, Knap T, Černý J, Pour V, Šavelka J, Kvapilíková I, et al. What Are the Facts? Automated Extraction of Court-Established Facts from Criminal-Court Opinions. In: Proceedings of the ASAIL 2025 Workshop at ICAIL. Northwestern Pritzker School of Law, Chicago (IL), USA; 2025.
 
-4. Braun V, Clarke V. Reflecting on reflexive thematic analysis. *Qual Res Sport Exerc Health*. 2019;11(4):589–597. doi:10.1080/2159676X.2019.1628806.
+4. Braun V, Clarke V. Reflecting on reflexive thematic analysis. _Qual Res Sport Exerc Health_. 2019;11(4):589–597. doi:10.1080/2159676X.2019.1628806.
 
 5. Šavelka J, Ashley KD. Segmenting U.S. court decisions into functional and issue specific parts. In: Legal Knowledge and Information Systems – JURIX 2018. IOS Press; 2018. p. 111–120. doi:10.3233/978-1-61499-935-5-111.
 
 6. Westermann H, Šavelka J, Walker VR, Ashley KD, Benyekhlef K. Sentence embeddings and high-speed similarity search for fast computer-assisted annotation of legal documents. In: Legal Knowledge and Information Systems – JURIX 2020. IOS Press; 2020. p. 164–173. doi:10.3233/FAIA200860.
 
-7. Šavelka J, Ashley KD. The unreasonable effectiveness of large language models in zero-shot semantic annotation of legal texts. *Front Artif Intell*. 2023;6:1279794. doi:10.3389/frai.2023.1279794.
+7. Šavelka J, Ashley KD. The unreasonable effectiveness of large language models in zero-shot semantic annotation of legal texts. _Front Artif Intell_. 2023;6:1279794. doi:10.3389/frai.2023.1279794.
 
 ## License
 
