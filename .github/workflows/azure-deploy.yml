@@ -64,7 +64,8 @@ jobs:
               "multer": "^2.0.2",
               "ws": "^8.14.2",
               "@google/generative-ai": "^0.21.0",
-              "@anthropic-ai/sdk": "^0.39.0"
+              "@anthropic-ai/sdk": "^0.39.0",
+              "openai": "^4.76.0"
             }
           }
           PKGJSON
