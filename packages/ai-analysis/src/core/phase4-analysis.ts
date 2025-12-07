@@ -3,9 +3,9 @@
  * TypeScript implementation for assigning finalized themes to cases
  */
 
-import { AIClient } from './ai-client.js';
-import { parseJsonResponse } from '../utils/response-parser.js';
-import type { AIProvider } from '@crime-themes/shared';
+import { AIClient } from "./ai-client.js";
+import { parseJsonResponse } from "../utils/response-parser.js";
+import type { AIProvider } from "@crime-themes/shared";
 
 export interface Phase4Config {
   tokenLimit?: number;
@@ -51,24 +51,36 @@ Example: {"12345": "Property theft in residential settings"}`;
  */
 function constructUserPrompt(
   finalizedThemes: string[],
-  caseData: { id: string; text: string; codes?: string | string[] }
+  caseData: { id: string; text: string; codes?: string | string[] },
+  globalInstructions?: string
 ): string {
   const codes = caseData.codes
-    ? (Array.isArray(caseData.codes) ? caseData.codes : [caseData.codes])
+    ? Array.isArray(caseData.codes)
+      ? caseData.codes
+      : [caseData.codes]
     : [];
-  
+
   let prompt = `Assign the most appropriate theme to this case from the finalized theme list.
 
 FINALIZED THEMES:
-${finalizedThemes.map((theme, i) => `${i + 1}. ${theme}`).join('\n')}
+${finalizedThemes.map((theme, i) => `${i + 1}. ${theme}`).join("\n")}
+`;
 
+  if (globalInstructions?.trim()) {
+    prompt += `
+SPECIAL INSTRUCTIONS:
+${globalInstructions.trim()}
+`;
+  }
+
+  prompt += `
 CASE TO ANALYZE:
 Case ID: ${caseData.id}
 Case Text: ${caseData.text}
 `;
 
   if (codes.length > 0) {
-    prompt += `Initial Codes: ${codes.join(', ')}\n`;
+    prompt += `Initial Codes: ${codes.join(", ")}\n`;
   }
 
   prompt += `
@@ -116,24 +128,28 @@ export class Phase4Analysis {
     caseId: string,
     caseText: string,
     codes?: string | string[],
+    globalInstructions?: string,
     provider?: AIProvider
   ): Promise<Phase4Result> {
     if (this.finalizedThemes.length === 0) {
       return {
         caseId,
-        assignedTheme: '',
+        assignedTheme: "",
         success: false,
-        error: 'No finalized themes set',
+        error: "No finalized themes set",
       };
     }
 
     const userPrompt = constructUserPrompt(
       this.finalizedThemes,
-      { id: caseId, text: caseText, codes }
+      { id: caseId, text: caseText, codes },
+      globalInstructions
     );
 
     try {
-      const response = await this.client.analyze(SYSTEM_PROMPT, userPrompt, { provider });
+      const response = await this.client.analyze(SYSTEM_PROMPT, userPrompt, {
+        provider,
+      });
       const parsed = parseJsonResponse(response.content);
 
       if (parsed && caseId in parsed) {
@@ -146,22 +162,24 @@ export class Phase4Analysis {
         // Try to find closest match
         const closestTheme = this.findClosestTheme(theme);
         if (closestTheme) {
-          this.themeCounts[closestTheme] = (this.themeCounts[closestTheme] || 0) + 1;
+          this.themeCounts[closestTheme] =
+            (this.themeCounts[closestTheme] || 0) + 1;
           return { caseId, assignedTheme: closestTheme, success: true };
         }
       }
 
       return {
         caseId,
-        assignedTheme: '',
+        assignedTheme: "",
         success: false,
-        error: 'Invalid or missing theme in response',
+        error: "Invalid or missing theme in response",
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         caseId,
-        assignedTheme: '',
+        assignedTheme: "",
         success: false,
         error: errorMessage,
       };
@@ -173,6 +191,7 @@ export class Phase4Analysis {
    */
   async assignThemes(
     cases: Array<{ id: string; text: string; codes?: string | string[] }>,
+    globalInstructions?: string,
     provider?: AIProvider
   ): Promise<Phase4Result[]> {
     const results: Phase4Result[] = [];
@@ -186,6 +205,7 @@ export class Phase4Analysis {
         caseData.id,
         caseData.text,
         caseData.codes,
+        globalInstructions,
         provider
       );
       results.push(result);
@@ -210,7 +230,10 @@ export class Phase4Analysis {
   private findClosestTheme(input: string): string | null {
     const inputLower = input.toLowerCase();
     for (const theme of this.finalizedThemes) {
-      if (theme.toLowerCase().includes(inputLower) || inputLower.includes(theme.toLowerCase())) {
+      if (
+        theme.toLowerCase().includes(inputLower) ||
+        inputLower.includes(theme.toLowerCase())
+      ) {
         return theme;
       }
     }
@@ -235,4 +258,3 @@ export function createPhase4Analysis(
 ): Phase4Analysis {
   return new Phase4Analysis(client, config, onProgress);
 }
-

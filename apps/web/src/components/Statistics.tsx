@@ -48,7 +48,7 @@ const Statistics: React.FC<Props> = ({
 
   return (
     <div className="statistics">
-      <h3>📈 Summary Statistics</h3>
+      <h3>Summary Statistics</h3>
 
       <div className="stats-grid">
         <div className="stat-card">

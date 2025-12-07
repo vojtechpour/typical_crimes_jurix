@@ -3,20 +3,24 @@ import "./design-system.css";
 import "./index.css";
 import "./App.css";
 
+import Starting from "./components/Starting"; // Introduction
 import DataBrowser from "./components/DataBrowser";
 import ScriptRunner from "./components/ScriptRunner"; // Phase 2
 import P3Analysis from "./components/P3Analysis"; // Phase 3
 import P3bAnalysis from "./components/P3bAnalysis"; // Phase 3b
 import P4AssignThemes from "./components/P4AssignThemes"; // Phase 4
 import ProcessSummary from "./components/ProcessSummary";
+import MockupDataGenerator from "./components/MockupDataGenerator";
 
 type NavItem = {
-  key: "data" | "p2" | "p3" | "p3b" | "p4";
+  key: "starting" | "data" | "mockup" | "p2" | "p3" | "p3b" | "p4";
   label: string;
 };
 
 const NAV: NavItem[] = [
+  { key: "starting", label: "Getting Started" },
   { key: "data", label: "Data & Theme Explorer" },
+  { key: "mockup", label: "Create Mockup Data" },
   { key: "p2", label: "Initial Codes (P2)" },
   { key: "p3", label: "Candidate Themes (P3)" },
   { key: "p3b", label: "Final Themes (P3b)" },
@@ -24,7 +28,7 @@ const NAV: NavItem[] = [
 ];
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<NavItem["key"]>("data");
+  const [currentTab, setCurrentTab] = useState<NavItem["key"]>("starting");
   const [theme, setTheme] = useState<"auto" | "dark" | "light">("auto");
   const [specificDataFile, setSpecificDataFile] = useState<string | null>(null);
 
@@ -109,6 +113,13 @@ export default function App() {
 
       {/* Main */}
       <main id="main" className="app-main" role="tabpanel">
+        {currentTab === "starting" && (
+          <section className="card">
+            <div className="card-body">
+              <Starting />
+            </div>
+          </section>
+        )}
         {currentTab === "data" && (
           <section className="card">
             <div className="card-header">
@@ -116,6 +127,16 @@ export default function App() {
             </div>
             <div className="card-body">
               <DataBrowser specificFile={specificDataFile} />
+            </div>
+          </section>
+        )}
+        {currentTab === "mockup" && (
+          <section className="card">
+            <div className="card-header">
+              <h2>Create Mockup Data</h2>
+            </div>
+            <div className="card-body">
+              <MockupDataGenerator />
             </div>
           </section>
         )}

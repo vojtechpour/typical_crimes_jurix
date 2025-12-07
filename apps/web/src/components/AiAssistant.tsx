@@ -3,14 +3,8 @@ import SuggestionItem from "./SuggestionItem";
 import type { AiSuggestion } from "../utils/aiUtils";
 
 type AiSettings = {
-  useGpt5?: boolean;
   model?: string;
-  reasoningEffort?: string;
-  verbosity?: string;
-  setUseGpt5?: (v: boolean) => void;
   setAiModel?: (m: string) => void;
-  setReasoningEffort?: (v: string) => void;
-  setVerbosity?: (v: string) => void;
 };
 
 interface AiAssistantProps {
@@ -42,16 +36,7 @@ const AiAssistant: React.FC<AiAssistantProps> = ({
     Record<string | number, any>
   >({});
 
-  const {
-    useGpt5,
-    model,
-    reasoningEffort,
-    verbosity,
-    setUseGpt5,
-    setAiModel,
-    setReasoningEffort,
-    setVerbosity,
-  } = aiSettings || {};
+  const { model, setAiModel } = aiSettings || {};
 
   const handleFollowUp = async (
     followUpQuestion: string,
@@ -82,12 +67,8 @@ const AiAssistant: React.FC<AiAssistantProps> = ({
 
         // Call the AI API directly for chat responses with thematic analysis context
         // Log model for chat follow-up
-        try {
-          const modelLabel = useGpt5
-            ? model || "gpt-5"
-            : "claude-3-5-sonnet-20241022";
-          console.log(`[AI] Chat follow-up using model: ${modelLabel}`);
-        } catch {}
+        const modelToUse = model || "gemini-2.0-flash";
+        console.log(`[AI] Chat follow-up using model: ${modelToUse}`);
 
         const response = await fetch("/api/ai-suggestions", {
           method: "POST",
@@ -135,9 +116,7 @@ Respond in JSON format:
 
 Only return the JSON object, no additional text.`,
             themeData: {}, // We can pass theme data if needed for context
-            aiSettings: useGpt5
-              ? { useGpt5, model, reasoningEffort, verbosity }
-              : { useGpt5: false },
+            aiSettings: { model: modelToUse },
           }),
         });
 
@@ -202,111 +181,49 @@ Only return the JSON object, no additional text.`,
   return (
     <div className="ai-assistant">
       <div className="ai-assistant-header">
-        <h5>🤖 AI Theme Assistant</h5>
+        <h5>AI Theme Assistant</h5>
         <span className="changes-count">{changesCount} changes to analyze</span>
       </div>
 
       <div className="ai-instructions-section">
         {/* AI Settings */}
         {aiSettings && (
-          <div className="ai-settings" style={{ marginBottom: 8 }}>
-            <label
-              style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
-            >
-              <input
-                type="checkbox"
-                checked={!!useGpt5}
-                onChange={(e) => setUseGpt5 && setUseGpt5(e.target.checked)}
-              />
-              Using GPT-5
+          <div
+            className="row"
+            style={{ alignItems: "center", marginBottom: 12 }}
+          >
+            <label htmlFor="ai-model-select" className="muted">
+              Model
             </label>
-
-            {useGpt5 && (
-              <div
-                className="ai-settings-row"
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  marginTop: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                <label
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <span>Model</span>
-                  <select
-                    value={model || "gpt-5"}
-                    onChange={(e) => setAiModel && setAiModel(e.target.value)}
-                  >
-                    <option value="gpt-5">gpt-5</option>
-                    <option value="gpt-5-mini">gpt-5-mini</option>
-                    <option value="gpt-5-nano">gpt-5-nano</option>
-                    <option value="claude-sonnet-4-5-20250929">
-                      Claude Sonnet 4.5
-                    </option>
-                    <option value="claude-3-5-sonnet-20241022">
-                      Claude 3.5 Sonnet
-                    </option>
-                    <option value="claude-3-5-haiku-20241022">
-                      Claude 3.5 Haiku
-                    </option>
-                    <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
-                    <option value="gpt-5-mini-2025-08-07">
-                      gpt-5-mini-2025-08-07
-                    </option>
-                    <option value="gpt-5-nano-2025-08-07">
-                      gpt-5-nano-2025-08-07
-                    </option>
-                  </select>
-                </label>
-
-                <label
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <span>Reasoning</span>
-                  <select
-                    value={reasoningEffort || "medium"}
-                    onChange={(e) =>
-                      setReasoningEffort && setReasoningEffort(e.target.value)
-                    }
-                  >
-                    <option value="minimal">minimal</option>
-                    <option value="low">low</option>
-                    <option value="medium">medium</option>
-                    <option value="high">high</option>
-                  </select>
-                </label>
-
-                <label
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <span>Verbosity</span>
-                  <select
-                    value={verbosity || "medium"}
-                    onChange={(e) =>
-                      setVerbosity && setVerbosity(e.target.value)
-                    }
-                  >
-                    <option value="low">low</option>
-                    <option value="medium">medium</option>
-                    <option value="high">high</option>
-                  </select>
-                </label>
-              </div>
-            )}
+            <select
+              id="ai-model-select"
+              className="select"
+              value={model || "gemini-2.0-flash"}
+              onChange={(e) => setAiModel && setAiModel(e.target.value)}
+            >
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+              <option value="claude-sonnet-4-5-20250929">
+                Claude Sonnet 4.5
+              </option>
+              <option value="claude-3-5-sonnet-20241022">
+                Claude 3.5 Sonnet
+              </option>
+              <option value="claude-3-5-haiku-20241022">
+                Claude 3.5 Haiku
+              </option>
+              <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
+              <option value="gpt-5-mini-2025-08-07">
+                gpt-5-mini-2025-08-07
+              </option>
+              <option value="gpt-5-nano-2025-08-07">
+                gpt-5-nano-2025-08-07
+              </option>
+            </select>
           </div>
         )}
 
@@ -325,11 +242,11 @@ Only return the JSON object, no additional text.`,
         >
           {isProcessing ? (
             <>
-              <span className="loading-spinner">⏳</span>
+              <span className="loading-spinner">...</span>
               Analyzing...
             </>
           ) : (
-            <>🧠 Analyze & Suggest</>
+            <>Analyze & Suggest</>
           )}
         </button>
       </div>
@@ -337,7 +254,7 @@ Only return the JSON object, no additional text.`,
       {showSuggestions && suggestions && (
         <div className="ai-suggestions">
           <div className="suggestions-header">
-            <h6>💡 AI Suggestions ({suggestions.length})</h6>
+            <h6>AI Suggestions ({suggestions.length})</h6>
             <p>Review and apply the suggestions you find helpful:</p>
           </div>
 

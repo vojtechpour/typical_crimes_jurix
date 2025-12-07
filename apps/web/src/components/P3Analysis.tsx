@@ -4,7 +4,7 @@ import P3FileSelector from "./P3FileSelector";
 import P3bResults from "./P3bResults";
 import P3CaseItem from "./P3CaseItem";
 import ThemesOrganizer from "./ThemesOrganizer";
-import DeleteCandidateThemesModal from "./DeleteCandidateThemesModal";
+import DeleteConfirmModal from "./ui/DeleteConfirmModal";
 
 type OutputEntry = {
   id: number;
@@ -51,6 +51,8 @@ const P3Analysis: React.FC = () => {
   const [selectedDataFile, setSelectedDataFile] = useState<string>("");
   const [availableFiles, setAvailableFiles] = useState<any[]>([]);
   const [model, setModel] = useState<string>("gemini-2.0-flash");
+  const [customInstructions, setCustomInstructions] = useState<string>("");
+  const [showInstructions, setShowInstructions] = useState<boolean>(false);
   const [initialCodesStats, setInitialCodesStats] = useState<{
     processedCases: number;
     totalCases: number;
@@ -135,14 +137,20 @@ const P3Analysis: React.FC = () => {
     const ws = new WebSocket("ws://localhost:9000");
     wsRef.current = ws;
 
-    ws.onopen = () => {};
+    ws.onopen = () => {
+      console.log("[P3 WS] Connected to WebSocket");
+    };
     ws.onmessage = (event: MessageEvent<string>) => {
+      console.log("[P3 WS] Received message:", event.data.substring(0, 100));
       handleMessage(event);
     };
     ws.onclose = () => {
+      console.log("[P3 WS] WebSocket closed, reconnecting in 3s...");
       setTimeout(connectWebSocket, 3000);
     };
-    ws.onerror = () => {};
+    ws.onerror = (error) => {
+      console.error("[P3 WS] WebSocket error:", error);
+    };
   };
 
   const exportThemesCSV = () => {
@@ -254,6 +262,17 @@ const P3Analysis: React.FC = () => {
       switch (message.type) {
         case "p3ProgressUpdate": {
           const progressData = message.data as any;
+
+          // Add to activity log
+          const themePreview = progressData.candidate_theme
+            ? progressData.candidate_theme.substring(0, 60) +
+              (progressData.candidate_theme.length > 60 ? "..." : "")
+            : "No theme";
+          addOutput(
+            `Case ${progressData.case_id}: ${themePreview} (${progressData.progress.processed}/${progressData.progress.total})`,
+            "success"
+          );
+
           setAnalysisStatus((prev) => {
             const newTheme: ThemeItem = {
               caseId: progressData.case_id,
@@ -342,7 +361,7 @@ const P3Analysis: React.FC = () => {
           }));
           setP3bStatus((prev) => ({ ...prev, phase: "Starting P3b" }));
           addOutput(
-            "✅ P3 analysis completed! Automatically starting P3b theme finalization...",
+            "P3 analysis completed! Automatically starting P3b theme finalization...",
             "success"
           );
           break;
@@ -355,7 +374,7 @@ const P3Analysis: React.FC = () => {
             output: [],
             error: null,
           }));
-          addOutput("🎯 P3b: Starting theme finalization process...", "info");
+          addOutput("P3b: Starting theme finalization process...", "info");
           break;
         }
         case "p3b_output": {
@@ -387,7 +406,7 @@ const P3Analysis: React.FC = () => {
             phase: "Complete (P3 + P3b)",
           }));
           addOutput(
-            "✅ P3b theme finalization completed successfully!",
+            "P3b theme finalization completed successfully!",
             "success"
           );
           break;
@@ -401,14 +420,14 @@ const P3Analysis: React.FC = () => {
           }));
           setIsRunning(false);
           addOutput(
-            `❌ P3b theme finalization failed with code ${message.code}`,
+            `P3b theme finalization failed with code ${message.code}`,
             "error"
           );
           break;
         }
         case "p3b_script_error": {
           setP3bStatus((prev) => ({ ...prev, error: message.data }));
-          addOutput(`❌ P3b Error: ${message.data}`, "error");
+          addOutput(`P3b Error: ${message.data}`, "error");
           break;
         }
         case "p3_scripts_stopped": {
@@ -420,7 +439,7 @@ const P3Analysis: React.FC = () => {
           }));
           setAnalysisStatus((prev) => ({ ...prev, phase: "Stopped" }));
           addOutput(
-            `⏹️ Scripts stopped: ${message.stoppedProcesses.join(" and ")}`,
+            `Scripts stopped: ${message.stoppedProcesses.join(" and ")}`,
             "warning"
           );
           break;
@@ -442,6 +461,7 @@ const P3Analysis: React.FC = () => {
         case "p3_script_started": {
           setIsRunning(true);
           setStartTime(Date.now());
+          addOutput("Phase 3 analysis started...", "info");
           setAnalysisStatus((prev) => ({
             ...prev,
             phase: "Starting",
@@ -462,10 +482,12 @@ const P3Analysis: React.FC = () => {
           if (!p3bStatus.isRunning) {
             setIsRunning(false);
             setAnalysisStatus((prev) => ({ ...prev, phase: "Stopped" }));
+            addOutput("Phase 3 analysis stopped", "warning");
           }
           break;
         }
         case "p3_script_error": {
+          addOutput(`Error: ${message.data}`, "error");
           setAnalysisStatus((prev) => ({
             ...prev,
             errors: [
@@ -511,23 +533,33 @@ const P3Analysis: React.FC = () => {
       const response = await fetch("/api/p3/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataFile: selectedDataFile, model }),
+        body: JSON.stringify({
+          dataFile: selectedDataFile,
+          model,
+          customInstructions: customInstructions.trim() || undefined,
+        }),
       });
       const data = await response.json();
       if (response.ok) {
         setIsRunning(true);
         setStartTime(Date.now());
         addOutput(
-          `🎯 Starting Phase 3 candidate theme generation (model: ${model})...`,
+          `Starting Phase 3 candidate theme generation (model: ${model})...`,
           "info"
         );
+        if (customInstructions.trim()) {
+          addOutput(
+            `Custom instructions: "${customInstructions.trim()}"`,
+            "info"
+          );
+        }
       } else {
         setError(data.error || "Failed to start P3 script");
-        addOutput(`❌ Error: ${data.error}`, "error");
+        addOutput(`Error: ${data.error}`, "error");
       }
     } catch (e: any) {
       setError("Failed to start P3 script: " + e.message);
-      addOutput(`❌ Error: ${e.message}`, "error");
+      addOutput(`Error: ${e.message}`, "error");
     }
   };
 
@@ -540,7 +572,7 @@ const P3Analysis: React.FC = () => {
       const data = await response.json();
       if (response.ok) {
         setIsRunning(false);
-        addOutput("⏹️ P3 stop request sent...", "warning");
+        addOutput("P3 stop request sent...", "warning");
       } else {
         setError(data.error || "Failed to stop P3 script");
       }
@@ -566,16 +598,16 @@ const P3Analysis: React.FC = () => {
           error: null,
         }));
         addOutput(
-          `🎯 Manually starting Phase 3b theme finalization (model: ${model})...`,
+          `Manually starting Phase 3b theme finalization (model: ${model})...`,
           "info"
         );
       } else {
         setError(data.error || "Failed to start P3b script");
-        addOutput(`❌ Error: ${data.error}`, "error");
+        addOutput(`Error: ${data.error}`, "error");
       }
     } catch (e: any) {
       setError("Failed to start P3b script: " + e.message);
-      addOutput(`❌ Error: ${e.message}`, "error");
+      addOutput(`Error: ${e.message}`, "error");
     }
   };
 
@@ -702,9 +734,9 @@ const P3Analysis: React.FC = () => {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to update theme");
       }
-      addOutput(`✅ Updated ${themeType} for case ${caseId}`, "success");
+      addOutput(`Updated ${themeType} for case ${caseId}`, "success");
     } catch (e: any) {
-      addOutput(`❌ Failed to update ${themeType}: ${e.message}`, "error");
+      addOutput(`Failed to update ${themeType}: ${e.message}`, "error");
       loadExistingThemes();
     }
   };
@@ -733,9 +765,9 @@ const P3Analysis: React.FC = () => {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to update codes");
       }
-      addOutput(`✅ Updated codes for case ${caseId}`, "success");
+      addOutput(`Updated codes for case ${caseId}`, "success");
     } catch (e: any) {
-      addOutput(`❌ Failed to update codes: ${e.message}`, "error");
+      addOutput(`Failed to update codes: ${e.message}`, "error");
       loadExistingThemes();
     }
   };
@@ -764,7 +796,7 @@ const P3Analysis: React.FC = () => {
 
       const result = await response.json();
       addOutput(
-        `✅ Successfully deleted ${result.deletedCount} candidate theme${
+        `Successfully deleted ${result.deletedCount} candidate theme${
           result.deletedCount !== 1 ? "s" : ""
         }`,
         "success"
@@ -774,7 +806,7 @@ const P3Analysis: React.FC = () => {
       await loadExistingThemes();
       setShowDeleteModal(false);
     } catch (e: any) {
-      addOutput(`❌ Failed to delete candidate themes: ${e.message}`, "error");
+      addOutput(`Failed to delete candidate themes: ${e.message}`, "error");
     } finally {
       setIsDeleting(false);
     }
@@ -904,6 +936,9 @@ const P3Analysis: React.FC = () => {
             value={model}
             onChange={(e) => setModel(e.target.value)}
           >
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+            <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
             <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
             <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
             <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
@@ -919,12 +954,125 @@ const P3Analysis: React.FC = () => {
             <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07</option>
           </select>
         </div>
+        <button
+          onClick={() => setShowInstructions(!showInstructions)}
+          className={`btn subtle ${
+            customInstructions.trim() ? "has-value" : ""
+          }`}
+          title={customInstructions.trim() || "Add custom instructions"}
+          style={{
+            position: "relative",
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ marginRight: 4 }}
+          >
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <line x1="10" y1="9" x2="8" y2="9" />
+          </svg>
+          Instructions
+          {customInstructions.trim() && (
+            <span
+              style={{
+                position: "absolute",
+                top: -4,
+                right: -4,
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                backgroundColor: "#3b82f6",
+              }}
+            />
+          )}
+        </button>
         <span className="spacer" />
         <span className="badge">{isRunning ? "Running" : "Stopped"}</span>
         {duration > 0 && (
           <span className="badge info">{formatDuration(duration)}</span>
         )}
       </div>
+
+      {/* Custom Instructions Panel */}
+      {showInstructions && (
+        <div
+          style={{
+            backgroundColor: "var(--card-bg)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "8px",
+            padding: "16px",
+            marginBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "12px",
+            }}
+          >
+            <label
+              htmlFor="custom-instructions"
+              style={{
+                fontWeight: 500,
+                color: "var(--text-primary)",
+                fontSize: "14px",
+              }}
+            >
+              Custom Instructions
+            </label>
+            <button
+              onClick={() => setShowInstructions(false)}
+              className="btn subtle"
+              style={{ padding: "4px 8px", fontSize: "12px" }}
+            >
+              Close
+            </button>
+          </div>
+          <textarea
+            id="custom-instructions"
+            value={customInstructions}
+            onChange={(e) => setCustomInstructions(e.target.value)}
+            placeholder="Add specific instructions for theme generation...&#10;&#10;Examples:&#10;• Focus on themes related to emotional responses&#10;• Group similar concepts under broader categories&#10;• Pay attention to temporal patterns&#10;• Use academic/formal language for theme names"
+            disabled={isRunning}
+            style={{
+              width: "100%",
+              minHeight: "100px",
+              padding: "12px",
+              borderRadius: "6px",
+              border: "1px solid var(--border-color)",
+              backgroundColor: "var(--input-bg)",
+              color: "var(--text-primary)",
+              fontSize: "13px",
+              lineHeight: "1.5",
+              resize: "vertical",
+              fontFamily: "inherit",
+            }}
+          />
+          <p
+            style={{
+              marginTop: "8px",
+              marginBottom: 0,
+              fontSize: "12px",
+              color: "var(--text-muted)",
+            }}
+          >
+            These instructions will be included in the AI prompt to guide how
+            themes are generated. Leave empty to use default behavior.
+          </p>
+        </div>
+      )}
 
       {error && <div className="badge warning">{error}</div>}
 
@@ -935,6 +1083,101 @@ const P3Analysis: React.FC = () => {
         isLoadingFiles={availableFiles.length === 0 && !selectedDataFile}
         initialCodesStats={initialCodesStats || undefined}
       />
+
+      {/* Progress Section */}
+      <section className="card">
+        <div className="card-header row">
+          <h3>Progress</h3>
+        </div>
+        <div className="card-body">
+          <div className="progress-overview">
+            <div className="progress-stats-grid">
+              <div className="stat-item">
+                <div className="stat-number">
+                  {analysisStatus.processedCases}
+                </div>
+                <div className="stat-label">Processed</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-number">{analysisStatus.totalCases}</div>
+                <div className="stat-label">Total Cases</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-number">
+                  {analysisStatus.uniqueThemesCount}
+                </div>
+                <div className="stat-label">Unique Themes</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-number">{analysisStatus.apiCalls}</div>
+                <div className="stat-label">API Calls</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Current processing status - show whenever running */}
+          {isRunning && (
+            <div className="progress-card">
+              <div className="progress-header">
+                <div className="pulse-dot" />
+                <h4 className="progress-title">
+                  {analysisStatus.phase || "Processing"}
+                  {analysisStatus.currentCase &&
+                    `: Case ${analysisStatus.currentCase}`}
+                </h4>
+              </div>
+              <div className="progress-text">
+                Progress: {analysisStatus.processedCases} /{" "}
+                {analysisStatus.totalCases} cases
+                {analysisStatus.totalCases > 0 && (
+                  <span>
+                    {" "}
+                    (
+                    {(
+                      (analysisStatus.processedCases /
+                        analysisStatus.totalCases) *
+                      100
+                    ).toFixed(1)}
+                    %)
+                  </span>
+                )}
+              </div>
+              <div className="progress-track">
+                <div
+                  className="progress-fill"
+                  style={{
+                    width:
+                      analysisStatus.totalCases > 0
+                        ? `${
+                            (analysisStatus.processedCases /
+                              analysisStatus.totalCases) *
+                            100
+                          }%`
+                        : "0%",
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Live activity log */}
+          {output.length > 0 && (
+            <div className="activity-log">
+              <h5 className="log-header">
+                Activity Log (last {Math.min(output.length, 20)} entries)
+              </h5>
+              <div className="log-entries">
+                {output.slice(-20).map((entry) => (
+                  <div key={entry.id} className={`log-entry ${entry.type}`}>
+                    <span className="log-timestamp">{entry.timestamp}</span>
+                    {entry.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
 
       {existingThemes.length > 0 && (
         <section className="card">
@@ -980,53 +1223,21 @@ const P3Analysis: React.FC = () => {
           </div>
           <div className="card-body">
             {/* Search, Filter, and Sort Controls */}
-            <div
-              className="codes-controls"
-              style={{
-                display: "flex",
-                gap: "12px",
-                alignItems: "center",
-                padding: "12px 16px",
-                backgroundColor: "rgba(255, 255, 255, 0.03)",
-                borderRadius: "8px",
-                marginBottom: "16px",
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ flex: "1 1 300px", minWidth: "200px" }}>
-                <input
-                  type="text"
-                  placeholder="Search by case ID, themes, codes, or text..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    backgroundColor: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                    borderRadius: "6px",
-                    color: "#fff",
-                    fontSize: "14px",
-                    outline: "none",
-                  }}
-                />
-              </div>
+            <div className="controls-bar">
+              <input
+                type="text"
+                className="search-input"
+                placeholder="Search by case ID, themes, codes, or text..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
 
               <select
+                className="filter-select"
                 value={filterType}
                 onChange={(e) =>
                   setFilterType(e.target.value as "all" | "candidate" | "final")
                 }
-                style={{
-                  padding: "8px 12px",
-                  backgroundColor: "rgba(255, 255, 255, 0.05)",
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
-                  borderRadius: "6px",
-                  color: "#fff",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  outline: "none",
-                }}
               >
                 <option value="all">All themes</option>
                 <option value="candidate">Candidate only</option>
@@ -1034,20 +1245,11 @@ const P3Analysis: React.FC = () => {
               </select>
 
               <select
+                className="filter-select"
                 value={sortBy}
                 onChange={(e) =>
                   setSortBy(e.target.value as "time" | "caseId" | "theme")
                 }
-                style={{
-                  padding: "8px 12px",
-                  backgroundColor: "rgba(255, 255, 255, 0.05)",
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
-                  borderRadius: "6px",
-                  color: "#fff",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  outline: "none",
-                }}
               >
                 <option value="time">Sort by: Time (newest)</option>
                 <option value="caseId">Sort by: Case ID</option>
@@ -1055,18 +1257,9 @@ const P3Analysis: React.FC = () => {
               </select>
 
               <select
+                className="filter-select"
                 value={itemsPerPage}
                 onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                style={{
-                  padding: "8px 12px",
-                  backgroundColor: "rgba(255, 255, 255, 0.05)",
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
-                  borderRadius: "6px",
-                  color: "#fff",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  outline: "none",
-                }}
               >
                 <option value={10}>Show: 10</option>
                 <option value={20}>Show: 20</option>
@@ -1082,10 +1275,6 @@ const P3Analysis: React.FC = () => {
                     setSearchQuery("");
                     setFilterType("all");
                   }}
-                  style={{
-                    padding: "6px 12px",
-                    fontSize: "14px",
-                  }}
                 >
                   Clear filters
                 </button>
@@ -1094,14 +1283,7 @@ const P3Analysis: React.FC = () => {
 
             <div className="codes-list">
               {getFilteredAndSortedThemes().length === 0 ? (
-                <div
-                  style={{
-                    padding: "40px 20px",
-                    textAlign: "center",
-                    color: "rgba(255, 255, 255, 0.5)",
-                    fontSize: "14px",
-                  }}
-                >
+                <div className="codes-list-empty">
                   No themes match your search or filters.
                 </div>
               ) : (
@@ -1120,26 +1302,8 @@ const P3Analysis: React.FC = () => {
 
             {/* Pagination Controls */}
             {getFilteredAndSortedThemes().length > 0 && totalPages > 1 && (
-              <div
-                className="pagination-controls"
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "16px",
-                  backgroundColor: "rgba(255, 255, 255, 0.03)",
-                  borderRadius: "8px",
-                  marginTop: "16px",
-                  flexWrap: "wrap",
-                  gap: "12px",
-                }}
-              >
-                <div
-                  style={{
-                    color: "rgba(255, 255, 255, 0.7)",
-                    fontSize: "14px",
-                  }}
-                >
+              <div className="pagination-bar">
+                <div className="pagination-info">
                   Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
                   {Math.min(
                     currentPage * itemsPerPage,
@@ -1148,37 +1312,18 @@ const P3Analysis: React.FC = () => {
                   of {getFilteredAndSortedThemes().length} cases
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "8px",
-                    alignItems: "center",
-                  }}
-                >
+                <div className="pagination-controls">
                   <button
                     className="btn subtle"
                     onClick={() =>
                       setCurrentPage((prev) => Math.max(1, prev - 1))
                     }
                     disabled={currentPage === 1}
-                    style={{
-                      padding: "6px 12px",
-                      fontSize: "14px",
-                      opacity: currentPage === 1 ? 0.5 : 1,
-                      cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                    }}
                   >
                     ← Previous
                   </button>
 
-                  {/* Page numbers */}
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "4px",
-                      alignItems: "center",
-                    }}
-                  >
+                  <div className="page-numbers">
                     {(() => {
                       const pages: React.ReactNode[] = [];
                       const maxPagesToShow = 5;
@@ -1201,11 +1346,6 @@ const P3Analysis: React.FC = () => {
                             key={1}
                             className="btn subtle"
                             onClick={() => setCurrentPage(1)}
-                            style={{
-                              padding: "6px 12px",
-                              fontSize: "14px",
-                              minWidth: "40px",
-                            }}
                           >
                             1
                           </button>
@@ -1214,10 +1354,7 @@ const P3Analysis: React.FC = () => {
                           pages.push(
                             <span
                               key="ellipsis-start"
-                              style={{
-                                padding: "6px 8px",
-                                color: "rgba(255, 255, 255, 0.5)",
-                              }}
+                              className="page-ellipsis"
                             >
                               ...
                             </span>
@@ -1233,11 +1370,6 @@ const P3Analysis: React.FC = () => {
                               i === currentPage ? "primary" : "subtle"
                             }`}
                             onClick={() => setCurrentPage(i)}
-                            style={{
-                              padding: "6px 12px",
-                              fontSize: "14px",
-                              minWidth: "40px",
-                            }}
                           >
                             {i}
                           </button>
@@ -1247,13 +1379,7 @@ const P3Analysis: React.FC = () => {
                       if (endPage < totalPages) {
                         if (endPage < totalPages - 1) {
                           pages.push(
-                            <span
-                              key="ellipsis-end"
-                              style={{
-                                padding: "6px 8px",
-                                color: "rgba(255, 255, 255, 0.5)",
-                              }}
-                            >
+                            <span key="ellipsis-end" className="page-ellipsis">
                               ...
                             </span>
                           );
@@ -1263,11 +1389,6 @@ const P3Analysis: React.FC = () => {
                             key={totalPages}
                             className="btn subtle"
                             onClick={() => setCurrentPage(totalPages)}
-                            style={{
-                              padding: "6px 12px",
-                              fontSize: "14px",
-                              minWidth: "40px",
-                            }}
                           >
                             {totalPages}
                           </button>
@@ -1284,13 +1405,6 @@ const P3Analysis: React.FC = () => {
                       setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                     }
                     disabled={currentPage === totalPages}
-                    style={{
-                      padding: "6px 12px",
-                      fontSize: "14px",
-                      opacity: currentPage === totalPages ? 0.5 : 1,
-                      cursor:
-                        currentPage === totalPages ? "not-allowed" : "pointer",
-                    }}
                   >
                     Next →
                   </button>
@@ -1300,15 +1414,7 @@ const P3Analysis: React.FC = () => {
 
             {/* Show summary when showing all items */}
             {getFilteredAndSortedThemes().length > 0 && totalPages <= 1 && (
-              <div
-                className="more-codes-indicator"
-                style={{
-                  textAlign: "center",
-                  padding: "16px",
-                  color: "rgba(255, 255, 255, 0.6)",
-                  fontSize: "14px",
-                }}
-              >
+              <div className="more-codes-indicator">
                 <span>
                   Showing all {getFilteredAndSortedThemes().length} cases
                 </span>
@@ -1329,7 +1435,7 @@ const P3Analysis: React.FC = () => {
         <div className="live-themes-section">
           <div className="section-header">
             <h4>
-              🔴 Live: Generated candidate themes (
+              Live: Generated candidate themes (
               {analysisStatus.recentThemes.length})
             </h4>
             <div className="section-stats">
@@ -1366,14 +1472,62 @@ const P3Analysis: React.FC = () => {
         </div>
       )}
 
-      <P3bResults p3bStatus={p3bStatus} />
+      <P3bResults
+        p3bStatus={p3bStatus}
+        candidateThemes={[
+          ...new Set(
+            existingThemes
+              .filter((t: any) => t.candidate_theme)
+              .map((t: any) => t.candidate_theme.trim())
+          ),
+        ]}
+        onClear={async () => {
+          if (!selectedDataFile) return;
+          try {
+            const res = await fetch(
+              `/api/data/${selectedDataFile}/delete-all-final-themes`,
+              { method: "DELETE" }
+            );
+            if (res.ok) {
+              setP3bStatus((prev) => ({
+                ...prev,
+                isRunning: false,
+                phase: "Cleared",
+                finalThemes: null,
+                error: null,
+              }));
+              addOutput("Final themes deleted successfully", "success");
+            } else {
+              const data = await res.json();
+              addOutput(
+                `Failed to delete final themes: ${data.error}`,
+                "error"
+              );
+            }
+          } catch (err) {
+            addOutput(`Failed to delete final themes: ${err}`, "error");
+          }
+        }}
+      />
 
       {/* Delete Confirmation Modal */}
-      <DeleteCandidateThemesModal
+      <DeleteConfirmModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDeleteAllCandidateThemes}
-        candidateThemesCount={getCandidateThemesCount()}
+        title="Delete All Candidate Themes?"
+        description={
+          <>
+            This will permanently delete{" "}
+            <strong style={{ color: "#ef4444" }}>
+              {getCandidateThemesCount()} candidate theme
+              {getCandidateThemesCount() !== 1 ? "s" : ""}
+            </strong>{" "}
+            from the selected data file. This action cannot be undone.
+          </>
+        }
+        warningMessage="Final themes will not be affected by this action."
+        confirmText={isDeleting ? "Deleting..." : "Delete All"}
         isDeleting={isDeleting}
       />
     </div>

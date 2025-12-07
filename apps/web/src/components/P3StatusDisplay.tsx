@@ -20,11 +20,11 @@ const P3StatusDisplay: React.FC<Props> = ({
   return (
     <div className="analysis-status">
       <div className="status-header">
-        <h3>🎯 P3 Theme Analysis Status</h3>
+        <h3>P3 Theme Analysis Status</h3>
         <div className="status-actions">
           {isRunning || p3bStatus.isRunning ? (
             <button className="stop-btn" onClick={stopScript} disabled={false}>
-              ⏹️ Stop Analysis
+              Stop Analysis
             </button>
           ) : null}
         </div>
@@ -35,9 +35,9 @@ const P3StatusDisplay: React.FC<Props> = ({
           <div className="status-label">P3 Phase</div>
           <div className="status-value">
             {analysisStatus.phase === "Complete (P3 + P3b)"
-              ? "✅ Complete"
+              ? "Complete"
               : analysisStatus.phase === "P3 Complete - Starting P3b"
-              ? "✅ Complete"
+              ? "Complete"
               : analysisStatus.phase}
           </div>
         </div>
@@ -46,11 +46,11 @@ const P3StatusDisplay: React.FC<Props> = ({
           <div className="status-label">P3b Phase</div>
           <div className="status-value">
             {p3bStatus.phase === "P3b Complete"
-              ? "✅ Complete"
+              ? "Complete"
               : p3bStatus.phase === "P3b Failed"
-              ? "❌ Failed"
+              ? "Failed"
               : p3bStatus.isRunning
-              ? "🔄 " + p3bStatus.phase
+              ? p3bStatus.phase
               : p3bStatus.phase}
           </div>
         </div>
@@ -118,7 +118,7 @@ const P3StatusDisplay: React.FC<Props> = ({
 
       {/* Workflow Description */}
       <div className="workflow-description">
-        <h5>📋 Analysis Workflow</h5>
+        <h5>Analysis Workflow</h5>
         <div className="workflow-steps">
           <div
             className={`workflow-step ${
@@ -145,7 +145,7 @@ const P3StatusDisplay: React.FC<Props> = ({
 
       {analysisStatus.errors.length > 0 && (
         <div className="errors-section">
-          <h5>⚠️ Errors ({analysisStatus.errors.length})</h5>
+          <h5>Errors ({analysisStatus.errors.length})</h5>
           {analysisStatus.errors.slice(-3).map((error: any, index: number) => (
             <div key={index} className="error-item">
               {error}

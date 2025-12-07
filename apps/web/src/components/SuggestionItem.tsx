@@ -83,19 +83,19 @@ const SuggestionItem: React.FC<Props> = ({
   const getSuggestionIcon = (type: string) => {
     switch (type) {
       case "move":
-        return "🔄";
+        return "~";
       case "rename":
-        return "✏️";
+        return "*";
       case "create":
-        return "➕";
+        return "+";
       case "delete":
-        return "🗑️";
+        return "x";
       case "merge":
-        return "🔗";
+        return ">";
       case "answer":
-        return "💬";
+        return "Q";
       default:
-        return "💡";
+        return "-";
     }
   };
 
@@ -206,7 +206,7 @@ const SuggestionItem: React.FC<Props> = ({
             <div className="chat-container">
               {/* Initial AI Response */}
               <div className="chat-message ai-message">
-                <div className="message-avatar">🤖</div>
+                <div className="message-avatar">AI</div>
                 <div className="message-content">
                   <div className="message-text">
                     {action.answer || "No answer provided"}
@@ -240,7 +240,7 @@ const SuggestionItem: React.FC<Props> = ({
                   className={`chat-message ${message.type}-message`}
                 >
                   <div className="message-avatar">
-                    {message.type === "user" ? "👤" : "🤖"}
+                    {message.type === "user" ? "You" : "AI"}
                   </div>
                   <div className="message-content">
                     <div
@@ -279,7 +279,7 @@ const SuggestionItem: React.FC<Props> = ({
               {/* Processing Indicator */}
               {isProcessingChat && (
                 <div className="chat-message ai-message processing">
-                  <div className="message-avatar">🤖</div>
+                  <div className="message-avatar">AI</div>
                   <div className="message-content">
                     <div className="message-text">
                       <span className="typing-indicator">
@@ -313,9 +313,9 @@ const SuggestionItem: React.FC<Props> = ({
                   className="chat-send-btn"
                 >
                   {isProcessingChat ? (
-                    <span className="loading-spinner">⏳</span>
+                    <span className="loading-spinner">...</span>
                   ) : (
-                    "💬"
+                    "Send"
                   )}
                 </button>
               </div>
@@ -377,14 +377,14 @@ const SuggestionItem: React.FC<Props> = ({
             className="apply-suggestion-btn"
             title="Apply this suggestion"
           >
-            ✅ Apply
+            Apply
           </button>
           <button
             onClick={() => onReject(suggestion)}
             className="reject-suggestion-btn"
             title="Reject this suggestion"
           >
-            ❌ Reject
+            Reject
           </button>
         </div>
       )}

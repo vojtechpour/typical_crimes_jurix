@@ -21,6 +21,8 @@ const P3bAnalysis: React.FC = () => {
   const [selectedDataFile, setSelectedDataFile] = useState<string>("");
   const [availableFiles, setAvailableFiles] = useState<any[]>([]);
   const [model, setModel] = useState<string>("gemini-2.0-flash");
+  const [customInstructions, setCustomInstructions] = useState<string>("");
+  const [showInstructions, setShowInstructions] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [output, setOutput] = useState<OutputEntry[]>([]);
   const [initialCodesStats, setInitialCodesStats] = useState<{
@@ -38,6 +40,9 @@ const P3bAnalysis: React.FC = () => {
   });
 
   const [candidateThemesCount, setCandidateThemesCount] = useState<number>(0);
+  const [candidateThemesList, setCandidateThemesList] = useState<string[]>([]);
+  const [existingFinalThemesCount, setExistingFinalThemesCount] =
+    useState<number>(0);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -56,9 +61,19 @@ const P3bAnalysis: React.FC = () => {
     if (selectedDataFile) {
       loadInitialCodesStats(selectedDataFile);
       loadCandidateThemesCount(selectedDataFile);
+      loadExistingFinalThemes(selectedDataFile);
     } else {
       setInitialCodesStats(null);
       setCandidateThemesCount(0);
+      setExistingFinalThemesCount(0);
+      // Reset P3b status when no file is selected
+      setP3bStatus({
+        isRunning: false,
+        phase: "Idle",
+        output: [],
+        finalThemes: null,
+        error: null,
+      });
     }
   }, [selectedDataFile]);
 
@@ -66,14 +81,20 @@ const P3bAnalysis: React.FC = () => {
     const ws = new WebSocket("ws://localhost:9000");
     wsRef.current = ws;
 
-    ws.onopen = () => {};
+    ws.onopen = () => {
+      console.log("[P3b WS] Connected to WebSocket");
+    };
     ws.onmessage = (event: MessageEvent<string>) => {
+      console.log("[P3b WS] Received message:", event.data.substring(0, 100));
       handleMessage(event);
     };
     ws.onclose = () => {
+      console.log("[P3b WS] WebSocket closed, reconnecting in 3s...");
       setTimeout(connectWebSocket, 3000);
     };
-    ws.onerror = () => {};
+    ws.onerror = (error) => {
+      console.error("[P3b WS] WebSocket error:", error);
+    };
   };
 
   const handleMessage = (event: MessageEvent<string>) => {
@@ -88,7 +109,7 @@ const P3bAnalysis: React.FC = () => {
             output: [],
             error: null,
           }));
-          addOutput("🎯 P3b: Starting theme finalization process...", "info");
+          addOutput("P3b: Starting theme finalization process...", "info");
           break;
         }
         case "p3b_output": {
@@ -115,9 +136,14 @@ const P3bAnalysis: React.FC = () => {
             finalThemes: message.output,
           }));
           addOutput(
-            "✅ P3b theme finalization completed successfully!",
+            "P3b theme finalization completed successfully!",
             "success"
           );
+          // Reload the themes data to update the counts
+          if (selectedDataFile) {
+            loadCandidateThemesCount(selectedDataFile);
+            loadExistingFinalThemes(selectedDataFile);
+          }
           break;
         }
         case "p3b_script_failed": {
@@ -127,10 +153,7 @@ const P3bAnalysis: React.FC = () => {
             phase: "P3b Failed",
             error: message.error || "P3b analysis failed",
           }));
-          addOutput(
-            `❌ P3b failed: ${message.error || "Unknown error"}`,
-            "error"
-          );
+          addOutput(`P3b failed: ${message.error || "Unknown error"}`, "error");
           break;
         }
         case "p3b_script_error": {
@@ -138,7 +161,16 @@ const P3bAnalysis: React.FC = () => {
             ...prev,
             error: message.data,
           }));
-          addOutput(`❌ P3b error: ${message.data}`, "error");
+          addOutput(`P3b error: ${message.data}`, "error");
+          break;
+        }
+        case "p3b_script_stopped": {
+          setP3bStatus((prev) => ({
+            ...prev,
+            isRunning: false,
+            phase: "Stopped",
+          }));
+          addOutput("P3b analysis stopped", "warning");
           break;
         }
         case "output": {
@@ -192,15 +224,124 @@ const P3bAnalysis: React.FC = () => {
 
   const loadCandidateThemesCount = async (filename: string) => {
     try {
-      const res = await fetch(`/api/data/${filename}/themes?limit=1`);
+      const res = await fetch(`/api/data/${filename}/themes?limit=10000`);
       const data = await res.json();
       if (res.ok && data.cases) {
-        const count = data.cases.filter(
+        const casesWithCandidates = data.cases.filter(
           (c: any) => c.candidate_theme && c.candidate_theme.trim()
-        ).length;
-        setCandidateThemesCount(count);
+        );
+        setCandidateThemesCount(casesWithCandidates.length);
+
+        // Extract unique candidate themes
+        const uniqueThemes = [
+          ...new Set(
+            casesWithCandidates.map((c: any) => c.candidate_theme.trim())
+          ),
+        ] as string[];
+        setCandidateThemesList(uniqueThemes);
+      } else if (res.ok && data.statistics) {
+        setCandidateThemesCount(data.statistics.casesWithCandidateThemes || 0);
       }
     } catch {}
+  };
+
+  const loadExistingFinalThemes = async (filename: string) => {
+    try {
+      const res = await fetch(`/api/data/${filename}/themes?limit=10000`);
+      const data = await res.json();
+      if (res.ok) {
+        // Get cases with final themes for count
+        const casesWithFinalThemes = (data.cases || []).filter(
+          (c: any) => c.theme && c.theme.trim()
+        );
+
+        setExistingFinalThemesCount(casesWithFinalThemes.length);
+
+        // Check if we have stored P3b output metadata (preferred source)
+        if (data.p3bOutput && data.p3bOutput.finalThemes) {
+          const p3bData = {
+            finalThemes: data.p3bOutput.finalThemes,
+            mappings: data.p3bOutput.mappings || {},
+          };
+          setP3bStatus((prev) => ({
+            ...prev,
+            phase: casesWithFinalThemes.length > 0 ? "P3b Complete" : "Cleared",
+            finalThemes: JSON.stringify(p3bData, null, 2),
+          }));
+          return;
+        }
+
+        // Fallback: reconstruct from case assignments (legacy behavior)
+        if (casesWithFinalThemes.length > 0) {
+          const finalThemesMap = new Map<
+            string,
+            {
+              name: string;
+              description: string;
+              mergedFrom: string[];
+              count: number;
+            }
+          >();
+          const mappings: Record<string, string> = {};
+
+          for (const caseItem of casesWithFinalThemes) {
+            const finalTheme = caseItem.theme;
+            const candidateTheme = caseItem.candidate_theme;
+
+            // Track final themes
+            if (!finalThemesMap.has(finalTheme)) {
+              finalThemesMap.set(finalTheme, {
+                name: finalTheme,
+                description: `Theme covering ${finalTheme.toLowerCase()} patterns`,
+                mergedFrom: [],
+                count: 0,
+              });
+            }
+            const themeData = finalThemesMap.get(finalTheme)!;
+            themeData.count++;
+
+            // Track mappings from candidate to final
+            if (candidateTheme && candidateTheme !== finalTheme) {
+              if (!themeData.mergedFrom.includes(candidateTheme)) {
+                themeData.mergedFrom.push(candidateTheme);
+              }
+              mappings[candidateTheme] = finalTheme;
+            }
+          }
+
+          // Convert to the expected format
+          const finalThemes = Array.from(finalThemesMap.values())
+            .sort((a, b) => b.count - a.count)
+            .map(({ name, description, mergedFrom }) => ({
+              name,
+              description,
+              mergedFrom,
+            }));
+
+          const reconstructedData = {
+            finalThemes,
+            mappings,
+          };
+
+          // Update P3b status with existing data
+          setP3bStatus((prev) => ({
+            ...prev,
+            phase: "P3b Complete",
+            finalThemes: JSON.stringify(reconstructedData, null, 2),
+            error: null,
+          }));
+        } else {
+          // No final themes exist yet
+          setP3bStatus((prev) => ({
+            ...prev,
+            phase: "Idle",
+            finalThemes: null,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("[P3b] Error loading existing final themes:", err);
+    }
   };
 
   const startP3b = async () => {
@@ -209,7 +350,11 @@ const P3bAnalysis: React.FC = () => {
       const response = await fetch("/api/p3b/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataFile: selectedDataFile, model }),
+        body: JSON.stringify({
+          dataFile: selectedDataFile,
+          model,
+          customInstructions: customInstructions.trim() || undefined,
+        }),
       });
       const data = await response.json();
       if (response.ok) {
@@ -220,29 +365,39 @@ const P3bAnalysis: React.FC = () => {
           error: null,
         }));
         addOutput(
-          `🎯 Starting Phase 3b theme finalization (model: ${model})...`,
+          `Starting Phase 3b theme finalization (model: ${model})...`,
           "info"
         );
+        if (customInstructions.trim()) {
+          addOutput(
+            `Custom instructions: "${customInstructions.trim()}"`,
+            "info"
+          );
+        }
       } else {
         setError(data.error || "Failed to start P3b script");
-        addOutput(`❌ Error: ${data.error}`, "error");
+        addOutput(`Error: ${data.error}`, "error");
       }
     } catch (e: any) {
       setError("Failed to start P3b script: " + e.message);
-      addOutput(`❌ Error: ${e.message}`, "error");
+      addOutput(`Error: ${e.message}`, "error");
     }
   };
 
   const stopP3b = async () => {
     try {
-      const response = await fetch("/api/p3/stop", {
+      const response = await fetch("/api/p3b/stop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
       const data = await response.json();
       if (response.ok) {
-        setP3bStatus((prev) => ({ ...prev, isRunning: false }));
-        addOutput("⏹️ P3b stop request sent...", "warning");
+        setP3bStatus((prev) => ({
+          ...prev,
+          isRunning: false,
+          phase: "Stopped",
+        }));
+        addOutput("P3b stop request sent...", "warning");
       } else {
         setError(data.error || "Failed to stop P3b script");
       }
@@ -294,6 +449,19 @@ const P3bAnalysis: React.FC = () => {
         <button onClick={clearOutput} className="btn subtle">
           Clear output
         </button>
+        <button
+          onClick={() => {
+            if (selectedDataFile) {
+              loadCandidateThemesCount(selectedDataFile);
+              loadExistingFinalThemes(selectedDataFile);
+              addOutput("Refreshed themes data from file", "info");
+            }
+          }}
+          disabled={!selectedDataFile}
+          className="btn subtle"
+        >
+          Refresh
+        </button>
         <div className="row" style={{ alignItems: "center" }}>
           <label htmlFor="p3b-model-select" className="muted">
             Model
@@ -304,6 +472,9 @@ const P3bAnalysis: React.FC = () => {
             value={model}
             onChange={(e) => setModel(e.target.value)}
           >
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+            <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
             <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
             <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
             <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
@@ -319,11 +490,122 @@ const P3bAnalysis: React.FC = () => {
             <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07</option>
           </select>
         </div>
+        <button
+          onClick={() => setShowInstructions(!showInstructions)}
+          className={`btn subtle ${
+            customInstructions.trim() ? "has-value" : ""
+          }`}
+          title={customInstructions.trim() || "Add custom instructions"}
+          style={{ position: "relative" }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ marginRight: 4 }}
+          >
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <line x1="10" y1="9" x2="8" y2="9" />
+          </svg>
+          Instructions
+          {customInstructions.trim() && (
+            <span
+              style={{
+                position: "absolute",
+                top: -4,
+                right: -4,
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                backgroundColor: "#3b82f6",
+              }}
+            />
+          )}
+        </button>
         <span className="spacer" />
         <span className="badge">
           {p3bStatus.isRunning ? "Running" : "Stopped"}
         </span>
       </div>
+
+      {/* Custom Instructions Panel */}
+      {showInstructions && (
+        <div
+          style={{
+            backgroundColor: "var(--card-bg)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "8px",
+            padding: "16px",
+            marginBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "12px",
+            }}
+          >
+            <label
+              htmlFor="p3b-custom-instructions"
+              style={{
+                fontWeight: 500,
+                color: "var(--text-primary)",
+                fontSize: "14px",
+              }}
+            >
+              Custom Instructions
+            </label>
+            <button
+              onClick={() => setShowInstructions(false)}
+              className="btn subtle"
+              style={{ padding: "4px 8px", fontSize: "12px" }}
+            >
+              Close
+            </button>
+          </div>
+          <textarea
+            id="p3b-custom-instructions"
+            value={customInstructions}
+            onChange={(e) => setCustomInstructions(e.target.value)}
+            placeholder="Add specific instructions for theme finalization...&#10;&#10;Examples:&#10;• Merge themes that are conceptually similar&#10;• Create broader category themes&#10;• Use formal academic terminology&#10;• Focus on behavioral patterns"
+            disabled={p3bStatus.isRunning}
+            style={{
+              width: "100%",
+              minHeight: "100px",
+              padding: "12px",
+              borderRadius: "6px",
+              border: "1px solid var(--border-color)",
+              backgroundColor: "var(--input-bg)",
+              color: "var(--text-primary)",
+              fontSize: "13px",
+              lineHeight: "1.5",
+              resize: "vertical",
+              fontFamily: "inherit",
+            }}
+          />
+          <p
+            style={{
+              marginTop: "8px",
+              marginBottom: 0,
+              fontSize: "12px",
+              color: "var(--text-muted)",
+            }}
+          >
+            These instructions will guide how the AI merges and finalizes
+            candidate themes. Leave empty to use default behavior.
+          </p>
+        </div>
+      )}
 
       {error && <div className="badge warning">{error}</div>}
 
@@ -335,107 +617,145 @@ const P3bAnalysis: React.FC = () => {
         initialCodesStats={initialCodesStats || undefined}
       />
 
-      {/* Status Card */}
-      {selectedDataFile && (
-        <section className="card soft" style={{ marginTop: 16 }}>
-          <div className="card-header row">
-            <h3>📊 Phase 3b Status</h3>
-          </div>
-          <div className="card-body">
-            <div className="row" style={{ gap: 16, flexWrap: "wrap" }}>
-              <div className="stat-card">
+      {/* Progress Section */}
+      <section className="card">
+        <div className="card-header row">
+          <h3>Progress</h3>
+        </div>
+        <div className="card-body">
+          <div className="progress-overview">
+            <div className="progress-stats-grid">
+              <div className="stat-item">
+                <div className="stat-number">{candidateThemesCount}</div>
                 <div className="stat-label">Candidate Themes</div>
-                <div className="stat-value">{candidateThemesCount}</div>
               </div>
-              <div className="stat-card">
+              <div className="stat-item">
+                <div className="stat-number">{existingFinalThemesCount}</div>
+                <div className="stat-label">Final Themes Applied</div>
+              </div>
+              <div className="stat-item">
                 <div className="stat-label">Status</div>
-                <div className="stat-value">
-                  {p3bStatus.phase === "P3b Complete"
-                    ? "✅ Complete"
-                    : p3bStatus.phase === "P3b Failed"
-                    ? "❌ Failed"
-                    : p3bStatus.isRunning
-                    ? "🔄 " + p3bStatus.phase
-                    : p3bStatus.phase}
-                </div>
-              </div>
-            </div>
-            {candidateThemesCount === 0 && (
-              <div
-                className="info-box"
-                style={{
-                  marginTop: 16,
-                  padding: 12,
-                  backgroundColor: "rgba(255, 193, 7, 0.1)",
-                  borderRadius: 8,
-                  color: "rgba(255, 193, 7, 0.9)",
-                }}
-              >
-                <strong>⚠️ No candidate themes found.</strong>
-                <p style={{ marginTop: 8, fontSize: 14 }}>
-                  Please run Phase 3 analysis first to generate candidate themes
-                  before starting Phase 3b.
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* Output Log */}
-      {output.length > 0 && (
-        <section className="card" style={{ marginTop: 16 }}>
-          <div className="card-header">
-            <h3>Output Log</h3>
-          </div>
-          <div className="card-body">
-            <div
-              className="output-log"
-              style={{
-                maxHeight: 400,
-                overflowY: "auto",
-                fontFamily: "monospace",
-                fontSize: 13,
-                backgroundColor: "rgba(0, 0, 0, 0.2)",
-                padding: 12,
-                borderRadius: 6,
-              }}
-            >
-              {output.map((entry) => (
                 <div
-                  key={entry.id}
-                  style={{
-                    padding: "4px 0",
-                    color:
-                      entry.type === "error"
-                        ? "#ff6b6b"
-                        : entry.type === "success"
-                        ? "#51cf66"
-                        : entry.type === "warning"
-                        ? "#ffd43b"
-                        : "rgba(255, 255, 255, 0.8)",
-                  }}
+                  className={`stat-status ${
+                    p3bStatus.phase === "P3b Complete"
+                      ? "success"
+                      : p3bStatus.phase === "P3b Failed"
+                      ? "error"
+                      : p3bStatus.isRunning
+                      ? "running"
+                      : "idle"
+                  }`}
                 >
-                  <span style={{ opacity: 0.5 }}>[{entry.timestamp}]</span>{" "}
-                  {entry.text}
+                  {p3bStatus.phase === "P3b Complete"
+                    ? "Done"
+                    : p3bStatus.phase === "P3b Failed"
+                    ? "Failed"
+                    : p3bStatus.isRunning
+                    ? "Running"
+                    : existingFinalThemesCount > 0
+                    ? "Previously Completed"
+                    : "Idle"}
                 </div>
-              ))}
+              </div>
+              <div className="stat-item">
+                <div className="stat-number">{p3bStatus.output.length}</div>
+                <div className="stat-label">Updates</div>
+              </div>
             </div>
           </div>
-        </section>
-      )}
+
+          {/* Current processing status - show whenever running */}
+          {p3bStatus.isRunning && (
+            <div className="progress-card">
+              <div className="progress-header">
+                <div className="pulse-dot" />
+                <h4 className="progress-title">{p3bStatus.phase}</h4>
+              </div>
+              <div className="progress-text">
+                Phase 3b analyzes all candidate themes to create a refined set
+                of final themes. This may take a few minutes depending on the
+                number of themes.
+              </div>
+              <div className="progress-track">
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: "100%",
+                    animation: "pulse 2s infinite",
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Warning when no candidate themes */}
+          {candidateThemesCount === 0 && selectedDataFile && (
+            <div
+              className="badge warning"
+              style={{ display: "block", padding: 12, marginTop: 16 }}
+            >
+              <strong>No candidate themes found.</strong>
+              <p style={{ marginTop: 8, fontSize: 14, marginBottom: 0 }}>
+                Please run Phase 3 analysis first to generate candidate themes
+                before starting Phase 3b.
+              </p>
+            </div>
+          )}
+
+          {/* Live activity log */}
+          {output.length > 0 && (
+            <div className="activity-log" style={{ marginTop: 16 }}>
+              <h5 className="log-header">
+                Activity Log (last {Math.min(output.length, 30)} entries)
+              </h5>
+              <div className="log-entries">
+                {output.slice(-30).map((entry) => (
+                  <div key={entry.id} className={`log-entry ${entry.type}`}>
+                    <span className="log-timestamp">{entry.timestamp}</span>
+                    {entry.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* P3b Results */}
-      <P3bResults p3bStatus={p3bStatus} />
+      <P3bResults
+        p3bStatus={p3bStatus}
+        candidateThemes={candidateThemesList}
+        onClear={async () => {
+          if (!selectedDataFile) return;
+          try {
+            const res = await fetch(
+              `/api/data/${selectedDataFile}/delete-all-final-themes`,
+              { method: "DELETE" }
+            );
+            if (res.ok) {
+              setP3bStatus((prev) => ({
+                ...prev,
+                isRunning: false,
+                phase: "Cleared",
+                finalThemes: null,
+                error: null,
+              }));
+              setExistingFinalThemesCount(0);
+              addOutput("Final themes deleted successfully", "success");
+            } else {
+              const data = await res.json();
+              addOutput(
+                `Failed to delete final themes: ${data.error}`,
+                "error"
+              );
+            }
+          } catch (err) {
+            addOutput(`Failed to delete final themes: ${err}`, "error");
+          }
+        }}
+      />
     </div>
   );
 };
 
 export default P3bAnalysis;
-
-
-
-
-
-
-

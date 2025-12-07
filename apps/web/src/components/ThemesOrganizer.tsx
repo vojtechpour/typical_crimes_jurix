@@ -1,15 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import "./ThemesOrganizer.css";
 import CandidateThemeItem from "./CandidateThemeItem";
 import ChangeTracker, { Change as ChangeRecord } from "./ChangeTracker";
-import AiAssistant from "./AiAssistant";
-import {
-  generateAiSuggestions,
-  type AiSuggestion,
-  type AiReasoningEffort,
-  type AiVerbosity,
-} from "../utils/aiUtils";
 import { useThemeHandlers, type ThemeItem } from "../hooks/useThemeHandlers";
+import Markdown from "react-markdown";
 
 type ThemeColumnSide = "left" | "right";
 
@@ -68,17 +62,41 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
   const [editThemeValueLeft, setEditThemeValueLeft] = useState<string>("");
   const [editThemeValueRight, setEditThemeValueRight] = useState<string>("");
 
-  // AI Assistant state
-  const [aiInstructions, setAiInstructions] = useState<string>("");
-  const [isAiProcessing, setIsAiProcessing] = useState<boolean>(false);
-  const [aiSuggestions, setAiSuggestions] = useState<AiSuggestion[]>([]);
-  const [showAiSuggestions, setShowAiSuggestions] = useState<boolean>(false);
-  // AI settings (model + reasoning + verbosity)
-  const [useGpt5, setUseGpt5] = useState<boolean>(false);
-  const [aiModel, setAiModel] = useState<string>("gpt-5"); // gpt-5 | gpt-5-mini | gpt-5-nano
-  const [reasoningEffort, setReasoningEffort] =
-    useState<AiReasoningEffort>("medium"); // minimal | low | medium | high
-  const [verbosity, setVerbosity] = useState<AiVerbosity>("medium"); // low | medium | high
+  // AI tool execution state
+  const [aiToolInput, setAiToolInput] = useState<string>("");
+  const [isExecutingTools, setIsExecutingTools] = useState<boolean>(false);
+  type LogEntry = {
+    type: "thinking" | "planning" | "executing" | "success" | "error" | "info";
+    message: string;
+    details?: string;
+  };
+  const [toolExecutionLog, setToolExecutionLog] = useState<LogEntry[]>([]);
+  // Pending tool calls awaiting user approval
+  type PendingToolCall = {
+    name: string;
+    args: Record<string, unknown>;
+    description: string;
+  };
+  const [pendingToolCalls, setPendingToolCalls] = useState<PendingToolCall[]>(
+    []
+  );
+  const [aiCommentary, setAiCommentary] = useState<string | null>(null);
+
+  // Conversation history for AI chat
+  type ConversationMessage = {
+    role: "user" | "assistant";
+    content: string;
+    toolCalls?: PendingToolCall[];
+  };
+  const [conversationHistory, setConversationHistory] = useState<
+    ConversationMessage[]
+  >([]);
+  const conversationEndRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom when conversation updates
+  useEffect(() => {
+    conversationEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [conversationHistory, pendingToolCalls]);
 
   // Helper function to add a change to the tracker
   const addChange = (change: ChangeRecord) => {
@@ -259,15 +277,22 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
 
   // Initialize themes from data
   useEffect(() => {
-    const themeMap = new Map();
+    const themeMap = new Map<string, Set<string>>();
+    const unassignedCandidates = new Set<string>();
 
     // Group candidate themes by their main theme
     themesData.forEach((item) => {
-      if (item.theme && item.candidate_theme) {
-        if (!themeMap.has(item.theme)) {
-          themeMap.set(item.theme, new Set());
+      if (item.candidate_theme) {
+        if (item.theme) {
+          // Candidate theme has a final theme assigned
+          if (!themeMap.has(item.theme)) {
+            themeMap.set(item.theme, new Set());
+          }
+          themeMap.get(item.theme)!.add(item.candidate_theme);
+        } else {
+          // Candidate theme without a final theme - add to unassigned
+          unassignedCandidates.add(item.candidate_theme);
         }
-        themeMap.get(item.theme).add(item.candidate_theme);
       }
     });
 
@@ -275,9 +300,17 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
     const themes: ThemeGroup[] = Array.from(themeMap.entries()).map(
       ([theme, candidateSet]) => ({
         name: theme,
-        candidateThemes: Array.from(candidateSet) as string[], // Convert Set to Array for uniqueness
+        candidateThemes: Array.from(candidateSet) as string[],
       })
     );
+
+    // Add unassigned candidates as a special group if any exist
+    if (unassignedCandidates.size > 0) {
+      themes.unshift({
+        name: "(Unassigned)",
+        candidateThemes: Array.from(unassignedCandidates),
+      });
+    }
 
     setAllThemes(themes);
 
@@ -761,161 +794,632 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
     }
   };
 
-  // AI Assistant functions
-  const handleAiAnalysis = async (followUpQuestion?: string) => {
-    const instructionsToUse = followUpQuestion || aiInstructions;
-    const isFollowUp = !!followUpQuestion;
-
-    if (!instructionsToUse.trim()) {
-      alert(
-        "Please provide instructions describing what you want to achieve with your theme organization."
-      );
-      return;
-    }
-
-    setIsAiProcessing(true);
-
-    // Only hide suggestions for initial analysis, not for follow-ups
-    if (!isFollowUp) {
-      setShowAiSuggestions(false);
-    }
-
-    try {
-      // Prepare the context for AI analysis
-      const changesContext = changes
-        .filter((c) => !c.reverted)
-        .map((c) => ({
-          type: c.type,
-          description: c.description,
-          timestamp: c.timestamp.toISOString(),
-          details: c.details,
-        }));
-
-      const currentThemes = allThemes.map((theme) => ({
-        name: theme.name,
-        candidateThemes: theme.candidateThemes,
-      }));
-
-      // Get AI suggestions based on instructions and/or changes
-      const newSuggestions = await generateAiSuggestions(
-        changesContext,
-        currentThemes,
-        instructionsToUse,
-        {
-          useGpt5,
-          model: aiModel,
-          reasoningEffort,
-          verbosity,
-        }
-      );
-
-      setAiSuggestions((prev) =>
-        isFollowUp ? [...prev, ...newSuggestions] : newSuggestions
-      );
-
-      setShowAiSuggestions(true);
-    } catch (error) {
-      console.error("Error getting AI suggestions:", error);
-      alert("Failed to get AI suggestions. Please try again.");
-    } finally {
-      setIsAiProcessing(false);
+  // Generate human-readable action description
+  const getActionDescription = (
+    name: string,
+    args: Record<string, unknown>
+  ): string => {
+    switch (name) {
+      case "move_theme":
+        return `Move "${args.candidateTheme}" from "${args.fromGroup}" to "${args.toGroup}"`;
+      case "merge_themes":
+        return `Merge "${args.theme1}" and "${args.theme2}" into "${args.newName}"`;
+      case "rename_theme":
+        return `Rename "${args.oldName}" to "${args.newName}"`;
+      case "create_theme_group":
+        return `Create new group "${args.groupName}"`;
+      case "delete_theme":
+        return `Delete "${args.themeName}"`;
+      default:
+        return `${name}(${JSON.stringify(args)})`;
     }
   };
 
-  // Apply a specific AI suggestion
-  const applySuggestion = async (suggestion: AiSuggestion) => {
+  // Execute AI tool request
+  const executeAiTools = async () => {
+    if (!aiToolInput.trim() || isExecutingTools) return;
+
+    const userMessage = aiToolInput.trim();
+
+    // Add user message to conversation
+    setConversationHistory((prev) => [
+      ...prev,
+      { role: "user", content: userMessage },
+    ]);
+
+    setIsExecutingTools(true);
+    setToolExecutionLog([{ type: "thinking", message: "Thinking..." }]);
+    setPendingToolCalls([]);
+    setAiCommentary(null);
+    setAiToolInput("");
+
     try {
-      switch (suggestion.action.type) {
-        case "move_candidate":
-          await handleSuggestionMove(suggestion.action as any);
-          break;
-        case "move_multiple_candidates":
-          await handleSuggestionMoveMultiple(suggestion.action as any);
-          break;
-        case "rename_candidate":
-          await handleSuggestionRename(suggestion.action as any);
-          break;
-        case "rename_theme":
-          await handleSuggestionThemeRename(suggestion.action as any);
-          break;
-        case "add_candidate":
-          await handleSuggestionAdd(suggestion.action as any);
-          break;
-        case "delete_candidate":
-          await handleSuggestionDelete(suggestion.action as any);
-          break;
-        case "create_theme":
-          await handleSuggestionCreateTheme(suggestion.action as any);
-          break;
-        case "merge_themes":
-          await handleSuggestionMergeThemes(suggestion.action as any);
-          break;
-        case "merge_candidates":
-          await handleSuggestionMergeCandidates(suggestion.action as any);
-          break;
-        default:
-          console.log("Unknown suggestion type:", suggestion.action.type);
-          return;
+      // Build conversation for API
+      const messagesForApi = [
+        ...conversationHistory,
+        { role: "user", content: userMessage },
+      ];
+
+      const response = await fetch("/api/ai-theme-tools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: userMessage,
+          model: "gemini-3-pro-preview",
+          themeData: allThemes,
+          conversationHistory: messagesForApi,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to execute AI tools");
       }
 
-      // Remove the applied suggestion from the list
-      setAiSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id));
+      // Build pending tool calls if any
+      let pending: PendingToolCall[] = [];
+      if (result.functionCalls && result.functionCalls.length > 0) {
+        pending = result.functionCalls.map(
+          (call: { name: string; args: Record<string, unknown> }) => ({
+            name: call.name,
+            args: call.args,
+            description: getActionDescription(call.name, call.args),
+          })
+        );
+        setPendingToolCalls(pending);
+      }
 
-      // Add to change tracker
-      const change = createChange(
-        "ai_suggestion",
-        `Applied AI suggestion: ${suggestion.title}`
-      );
-      addChange(change);
-      setChanges((prev) =>
-        prev.map((c) =>
-          c.id === change.id
-            ? {
-                ...c,
-                details: {
-                  action: "ai_applied",
-                  suggestion: suggestion,
-                },
-              }
-            : c
-        )
-      );
+      // Add assistant response to conversation
+      if (result.textResponse || pending.length > 0) {
+        setConversationHistory((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: result.textResponse || "",
+            toolCalls: pending.length > 0 ? pending : undefined,
+          },
+        ]);
+      }
+
+      setToolExecutionLog([]);
     } catch (error) {
-      console.error("Error applying suggestion:", error);
-      alert("Failed to apply suggestion. Please try again.");
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setToolExecutionLog([{ type: "error", message: errorMsg }]);
+      // Add error to conversation
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: "assistant", content: `Error: ${errorMsg}` },
+      ]);
+    } finally {
+      setIsExecutingTools(false);
     }
   };
 
-  // Reject a suggestion
-  const rejectSuggestion = (suggestion: AiSuggestion) => {
-    setAiSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id));
-    const change = createChange(
-      "ai_suggestion",
-      `Rejected AI suggestion: ${suggestion.title}`
-    );
-    addChange(change);
-    setChanges((prev) =>
-      prev.map((c) =>
-        c.id === change.id
-          ? {
-              ...c,
-              details: {
-                action: "ai_rejected",
-                suggestion: suggestion,
-              },
-            }
-          : c
-      )
-    );
+  // Clear conversation
+  const clearConversation = () => {
+    setConversationHistory([]);
+    setPendingToolCalls([]);
+    setToolExecutionLog([]);
+    setAiCommentary(null);
+  };
+
+  // Approve and execute a single pending tool call
+  const approveSingleCall = async (index: number) => {
+    const call = pendingToolCalls[index];
+    if (!call) return;
+
+    setIsExecutingTools(true);
+
+    setToolExecutionLog((prev) => [
+      ...prev,
+      { type: "executing", message: call.description },
+    ]);
+
+    try {
+      await executeToolCall(call.name, call.args);
+      setToolExecutionLog((prev) => [
+        ...prev,
+        { type: "success", message: "Done" },
+      ]);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setToolExecutionLog((prev) => [
+        ...prev,
+        { type: "error", message: errorMsg },
+      ]);
+    }
+
+    // Remove the executed call from pending
+    setPendingToolCalls((prev) => prev.filter((_, i) => i !== index));
+    setIsExecutingTools(false);
+
+    // Clear commentary when all calls are done
+    if (pendingToolCalls.length === 1) {
+      setAiCommentary(null);
+    }
+  };
+
+  // Reject a single pending tool call
+  const rejectSingleCall = (index: number) => {
+    setPendingToolCalls((prev) => prev.filter((_, i) => i !== index));
+
+    // Clear commentary when all calls are dismissed
+    if (pendingToolCalls.length === 1) {
+      setAiCommentary(null);
+      setToolExecutionLog([]);
+    }
+  };
+
+  // Reject all pending tool calls
+  const rejectAllCalls = () => {
+    setPendingToolCalls([]);
+    setAiCommentary(null);
+    setToolExecutionLog([]);
+  };
+
+  // Execute a single tool call
+  const executeToolCall = async (
+    name: string,
+    args: Record<string, unknown>
+  ) => {
+    switch (name) {
+      case "move_theme": {
+        const { candidateTheme, fromGroup, toGroup } = args as {
+          candidateTheme: string;
+          fromGroup: string;
+          toGroup: string;
+        };
+        await handleSuggestionMove({
+          candidateTheme,
+          fromTheme: fromGroup,
+          toTheme: toGroup,
+        });
+        const change = createChange(
+          "theme",
+          `AI moved "${candidateTheme}" from "${fromGroup}" to "${toGroup}"`
+        );
+        addChange(change);
+        break;
+      }
+
+      case "merge_themes": {
+        const { theme1, theme2, newName } = args as {
+          theme1: string;
+          theme2: string;
+          newName: string;
+        };
+        await handleSuggestionMergeCandidates({
+          candidate1: theme1,
+          candidate2: theme2,
+          newName,
+          theme: selectedLeftTheme || selectedRightTheme || "",
+        });
+        const change = createChange(
+          "candidate_theme",
+          `AI merged "${theme1}" and "${theme2}" into "${newName}"`
+        );
+        addChange(change);
+        break;
+      }
+
+      case "rename_theme": {
+        const { oldName, newName, themeType } = args as {
+          oldName: string;
+          newName: string;
+          themeType: "group" | "candidate";
+        };
+        if (themeType === "group") {
+          await handleSuggestionThemeRename({
+            currentName: oldName,
+            suggestedName: newName,
+          });
+          const change = createChange(
+            "main_theme",
+            `AI renamed theme group "${oldName}" to "${newName}"`
+          );
+          addChange(change);
+        } else {
+          const theme = selectedLeftTheme || selectedRightTheme || "";
+          await handleSuggestionRename({
+            currentName: oldName,
+            suggestedName: newName,
+            theme,
+          });
+          const change = createChange(
+            "candidate_theme",
+            `AI renamed "${oldName}" to "${newName}"`
+          );
+          addChange(change);
+        }
+        break;
+      }
+
+      case "create_theme_group": {
+        const { groupName } = args as { groupName: string };
+        await handleSuggestionCreateTheme({
+          newThemeName: groupName,
+          candidatesToMove: [],
+        });
+        const change = createChange(
+          "main_theme",
+          `AI created new theme group "${groupName}"`
+        );
+        addChange(change);
+        break;
+      }
+
+      case "delete_theme": {
+        const { themeName, themeType } = args as {
+          themeName: string;
+          themeType: "group" | "candidate";
+        };
+        if (themeType === "candidate") {
+          const theme = selectedLeftTheme || selectedRightTheme || "";
+          await handleSuggestionDelete({ candidateTheme: themeName, theme });
+          const change = createChange(
+            "candidate_theme",
+            `AI deleted candidate theme "${themeName}"`
+          );
+          addChange(change);
+        } else {
+          // For group deletion, we'd need to implement this
+          console.warn("Group deletion not implemented yet");
+        }
+        break;
+      }
+
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
   };
 
   return (
     <div className="themes-organizer-dual">
       <div className="organizer-header">
-        <h4>🗂️ Theme Organization</h4>
-        <p>
-          Select themes and drag candidate themes between columns to reorganize
-        </p>
+        <div>
+          <h4>Theme Organization</h4>
+          <p>
+            Select themes and drag candidate themes between columns to
+            reorganize
+          </p>
+        </div>
+
+        {/* AI Chat Section */}
+        <div
+          className="ai-chat-section"
+          style={{
+            marginTop: 16,
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-m)",
+            overflow: "hidden",
+          }}
+        >
+          {/* Conversation History */}
+          <div
+            style={{
+              maxHeight: 300,
+              overflowY: "auto",
+              padding: conversationHistory.length > 0 ? 16 : 0,
+              background: "var(--surface-1)",
+            }}
+          >
+            {conversationHistory.map((msg, index) => (
+              <div
+                key={index}
+                style={{
+                  marginBottom: 16,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {msg.role === "user" ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: "var(--primary-100)",
+                        color: "var(--primary-700)",
+                        padding: "10px 14px",
+                        borderRadius: "var(--radius-m)",
+                        maxWidth: "85%",
+                        fontSize: 14,
+                      }}
+                    >
+                      {msg.content}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        background: "var(--surface-2)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 14,
+                        flexShrink: 0,
+                      }}
+                    >
+                      🤖
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {msg.content && (
+                        <div
+                          className="ai-message-content"
+                          style={{
+                            fontSize: 14,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          <Markdown>{msg.content}</Markdown>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Thinking indicator */}
+            {isExecutingTools && toolExecutionLog.length > 0 && (
+              <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    background: "var(--surface-2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                  }}
+                >
+                  🤖
+                </div>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      animation: "pulse 1.5s ease-in-out infinite",
+                    }}
+                  >
+                    💭
+                  </span>
+                  Thinking...
+                </div>
+              </div>
+            )}
+
+            {/* Execution Log (for action status) */}
+            {toolExecutionLog.some(
+              (e) => e.type === "executing" || e.type === "success"
+            ) && (
+              <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 28 }} />
+                <div
+                  style={{
+                    fontSize: 13,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  {toolExecutionLog
+                    .filter(
+                      (e) =>
+                        e.type === "executing" ||
+                        e.type === "success" ||
+                        e.type === "error"
+                    )
+                    .map((entry, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          color:
+                            entry.type === "success"
+                              ? "var(--success-500)"
+                              : entry.type === "error"
+                              ? "var(--danger-500)"
+                              : "var(--text-muted)",
+                        }}
+                      >
+                        <span>
+                          {entry.type === "executing"
+                            ? "⚡"
+                            : entry.type === "success"
+                            ? "✓"
+                            : "✗"}
+                        </span>
+                        <span>{entry.message}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            <div ref={conversationEndRef} />
+          </div>
+
+          {/* Pending Actions */}
+          {pendingToolCalls.length > 0 && (
+            <div
+              style={{
+                padding: 16,
+                background: "var(--surface-2)",
+                borderTop: "1px solid var(--border)",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 500,
+                  marginBottom: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  fontSize: 13,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>📋</span>
+                  <span>
+                    {pendingToolCalls.length}{" "}
+                    {pendingToolCalls.length === 1
+                      ? "action pending"
+                      : "actions pending"}
+                  </span>
+                </div>
+                {pendingToolCalls.length > 1 && (
+                  <button
+                    onClick={rejectAllCalls}
+                    disabled={isExecutingTools}
+                    className="btn"
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: 12,
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    Dismiss all
+                  </button>
+                )}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {pendingToolCalls.map((call, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "10px 12px",
+                      background: "var(--surface-1)",
+                      borderRadius: "var(--radius-s)",
+                      fontSize: 13,
+                    }}
+                  >
+                    <span style={{ flex: 1 }}>{call.description}</span>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        onClick={() => approveSingleCall(index)}
+                        disabled={isExecutingTools}
+                        className="btn primary"
+                        style={{
+                          padding: "4px 12px",
+                          fontSize: 12,
+                        }}
+                      >
+                        ✓
+                      </button>
+                      <button
+                        onClick={() => rejectSingleCall(index)}
+                        disabled={isExecutingTools}
+                        className="btn"
+                        style={{
+                          padding: "4px 12px",
+                          fontSize: 12,
+                          background: "var(--surface-2)",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        ✗
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Input Area */}
+          <div
+            style={{
+              padding: 12,
+              background: "var(--surface-2)",
+              borderTop:
+                pendingToolCalls.length === 0
+                  ? "1px solid var(--border)"
+                  : "none",
+              display: "flex",
+              gap: 8,
+            }}
+          >
+            <input
+              type="text"
+              value={aiToolInput}
+              onChange={(e) => setAiToolInput(e.target.value)}
+              onKeyDown={(e) =>
+                e.key === "Enter" && !e.shiftKey && executeAiTools()
+              }
+              placeholder={
+                conversationHistory.length === 0
+                  ? "Ask AI to help organize themes..."
+                  : "Reply to continue the conversation..."
+              }
+              style={{
+                flex: 1,
+                padding: "10px 14px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-m)",
+                background: "var(--surface-1)",
+                color: "var(--text)",
+                fontSize: 14,
+              }}
+              disabled={isExecutingTools}
+            />
+            <button
+              onClick={executeAiTools}
+              disabled={isExecutingTools || !aiToolInput.trim()}
+              className="btn primary"
+              style={{ padding: "10px 16px" }}
+            >
+              {isExecutingTools ? "..." : "Send"}
+            </button>
+            {conversationHistory.length > 0 && (
+              <button
+                onClick={clearConversation}
+                disabled={isExecutingTools}
+                className="btn"
+                title="Clear conversation"
+                style={{
+                  padding: "10px 12px",
+                  background: "var(--surface-1)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                🗑️
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="dual-column-layout">
@@ -986,7 +1490,7 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
                       className="theme-edit-btn"
                       title="Edit theme name"
                     >
-                      ✏️
+                      Edit
                     </button>
                   </>
                 )}
@@ -1121,7 +1625,7 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
                       className="theme-edit-btn"
                       title="Edit theme name"
                     >
-                      ✏️
+                      Edit
                     </button>
                   </>
                 )}
@@ -1196,30 +1700,6 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
         onClearChanges={() => setChanges([])}
         onRevertChange={revertChange}
         onRevertAllChanges={revertAllChanges}
-      />
-
-      {/* AI Assistant */}
-      <AiAssistant
-        instructions={aiInstructions}
-        onInstructionsChange={setAiInstructions}
-        onAnalyze={handleAiAnalysis}
-        isProcessing={isAiProcessing}
-        suggestions={aiSuggestions}
-        showSuggestions={showAiSuggestions}
-        onApplySuggestion={applySuggestion}
-        onRejectSuggestion={rejectSuggestion}
-        changesCount={changes.filter((c) => !c.reverted).length}
-        aiSettings={{
-          useGpt5,
-          model: aiModel,
-          reasoningEffort,
-          verbosity,
-          setUseGpt5,
-          setAiModel,
-          setReasoningEffort: (v: string) =>
-            setReasoningEffort(v as AiReasoningEffort),
-          setVerbosity: (v: string) => setVerbosity(v as AiVerbosity),
-        }}
       />
     </div>
   );

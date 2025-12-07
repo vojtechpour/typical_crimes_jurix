@@ -1,11 +1,5 @@
-export type AiReasoningEffort = "minimal" | "low" | "medium" | "high";
-export type AiVerbosity = "low" | "medium" | "high";
-
 export interface AiSettings {
-  useGpt5?: boolean;
   model?: string;
-  reasoningEffort?: AiReasoningEffort;
-  verbosity?: AiVerbosity;
 }
 
 export interface ThemeSummary {
@@ -196,16 +190,8 @@ IMPORTANT:
 Only return the JSON object, no additional text.`;
 
     // Log model being used for AI suggestions
-    try {
-      const modelLabel = aiSettings?.useGpt5
-        ? aiSettings?.model || "gpt-5"
-        : "claude-3-5-sonnet-20241022";
-      console.log(
-        `[AI] Generating theme suggestions with model: ${modelLabel}`
-      );
-    } catch (err) {
-      console.warn("Failed to log AI model", err);
-    }
+    const modelToUse = aiSettings?.model || "gemini-2.0-flash";
+    console.log(`[AI] Generating theme suggestions with model: ${modelToUse}`);
 
     const response = await fetch("/api/ai-suggestions", {
       method: "POST",

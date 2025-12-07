@@ -31,22 +31,22 @@ const ChangeTracker: React.FC<Props> = ({
   const getChangeIcon = (type: string) => {
     switch (type) {
       case "theme":
-        return "↔️";
+        return ">";
       case "candidate_theme":
-        return "✏️";
+        return "*";
       case "main_theme":
-        return "🔄";
+        return "~";
       case "ai_suggestion":
-        return "🤖";
+        return "AI";
       default:
-        return "📝";
+        return "-";
     }
   };
 
   return (
     <div className="change-tracker">
       <div className="change-tracker-header">
-        <h5>📋 Recent Changes</h5>
+        <h5>Recent Changes</h5>
         {changes.length > 0 && (
           <div className="change-tracker-buttons">
             <button
@@ -54,7 +54,7 @@ const ChangeTracker: React.FC<Props> = ({
               className="clear-changes-btn"
               title="Clear all changes"
             >
-              🗑️ Clear
+              Clear
             </button>
             {changes.some((c) => !c.reverted) && (
               <button
@@ -62,7 +62,7 @@ const ChangeTracker: React.FC<Props> = ({
                 className="revert-all-changes-btn"
                 title="Revert all changes"
               >
-                ↩️ Revert All
+                Revert All
               </button>
             )}
           </div>
@@ -80,7 +80,7 @@ const ChangeTracker: React.FC<Props> = ({
             >
               <span className="change-icon">{getChangeIcon(change.type)}</span>
               <span className="change-description">
-                {change.reverted ? "↩️ " : ""}
+                {change.reverted ? "(reverted) " : ""}
                 {change.description}
               </span>
               <span className="change-time">
@@ -92,7 +92,7 @@ const ChangeTracker: React.FC<Props> = ({
                   className="revert-change-btn"
                   title="Revert this change"
                 >
-                  ↩️
+                  Undo
                 </button>
               )}
             </div>

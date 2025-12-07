@@ -62,14 +62,14 @@ const ExistingThemeItem: React.FC<Props> = ({
             type="button"
             title="Regenerate theme"
           >
-            {isRegenerating ? "🔄" : "🎯"} Regenerate
+            {isRegenerating ? "..." : ""} Regenerate
           </button>
         </div>
       </div>
 
       <div className="theme-content">
         <div className="theme-display">
-          <h6>🎯 Candidate Theme</h6>
+          <h6>Candidate Theme</h6>
           {isEditing ? (
             <div className="theme-edit-inline">
               <input
@@ -110,7 +110,7 @@ const ExistingThemeItem: React.FC<Props> = ({
                 title="Edit theme"
                 disabled={isSaving}
               >
-                ✏️
+                Edit
               </button>
             </div>
           )}
@@ -118,7 +118,7 @@ const ExistingThemeItem: React.FC<Props> = ({
 
         {themeData.initialCodes && (
           <div className="initial-codes-display">
-            <h6>🏷️ Source Initial Codes</h6>
+            <h6>Source Initial Codes</h6>
             <div className="codes-tags">
               {Array.isArray(themeData.initialCodes) ? (
                 themeData.initialCodes.map((code, index) => (
@@ -138,7 +138,7 @@ const ExistingThemeItem: React.FC<Props> = ({
         {themeData.caseText && (
           <div className="case-text-section">
             <div className="case-text-header">
-              <h6>📄 Case Text</h6>
+              <h6>Case Text</h6>
             </div>
             <div className="case-text-content">
               <p className="case-text">

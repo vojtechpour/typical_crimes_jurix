@@ -53,7 +53,7 @@ const ThemeGenerationItem: React.FC<Props> = ({
 
       <div className="theme-content">
         <div className="theme-display">
-          <h6>🎯 Candidate Theme</h6>
+          <h6>Candidate Theme</h6>
           {isEditing ? (
             <div className="theme-edit-inline">
               <input
@@ -93,7 +93,7 @@ const ThemeGenerationItem: React.FC<Props> = ({
                 title="Edit theme"
                 disabled={isSaving}
               >
-                ✏️
+                Edit
               </button>
             </div>
           )}
@@ -101,7 +101,7 @@ const ThemeGenerationItem: React.FC<Props> = ({
 
         {theme.initialCodes && theme.initialCodes.length > 0 && (
           <div className="initial-codes-display">
-            <h6>🏷️ Source Initial Codes</h6>
+            <h6>Source Initial Codes</h6>
             <div className="codes-tags">
               {theme.initialCodes.map((code, index) => (
                 <span key={index} className="source-code-tag">

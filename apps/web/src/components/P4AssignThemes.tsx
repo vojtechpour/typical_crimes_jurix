@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import P3CaseItem, { CaseThemeItem, ThemeField } from "./P3CaseItem";
+import DeleteConfirmModal from "./ui/DeleteConfirmModal";
 
 type OutputLineType = "info" | "error" | "success" | "warning" | string;
 
@@ -31,6 +32,8 @@ const P4AssignThemes: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(0);
   const [model, setModel] = useState<string>("gemini-2.0-flash");
+  const [customInstructions, setCustomInstructions] = useState<string>("");
+  const [showInstructions, setShowInstructions] = useState<boolean>(false);
   const [availableFiles, setAvailableFiles] = useState<DataFileOption[]>([]);
   const [filesLoading, setFilesLoading] = useState<boolean>(true);
   const [selectedDataFile, setSelectedDataFile] = useState<string>("");
@@ -50,6 +53,8 @@ const P4AssignThemes: React.FC = () => {
   const [themesFile, setThemesFile] = useState<string>(
     "kradeze_pripady_3b.json"
   );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const startRef = useRef<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -79,7 +84,7 @@ const P4AssignThemes: React.FC = () => {
           case "p4_script_started":
             setIsRunning(true);
             startRef.current = Date.now();
-            addOutput("🚀 Phase 4 started", "info");
+            addOutput("Phase 4 started", "info");
             break;
           case "p4ProgressUpdate": {
             const data = msg.data || {};
@@ -96,7 +101,7 @@ const P4AssignThemes: React.FC = () => {
             }));
             if (data.case_id && data.theme) {
               addOutput(
-                `🎯 Assigned theme for case ${data.case_id}: ${String(
+                `Assigned theme for case ${data.case_id}: ${String(
                   data.theme
                 ).slice(0, 120)}`,
                 "info"
@@ -125,19 +130,19 @@ const P4AssignThemes: React.FC = () => {
             addOutput(msg.text, "info");
             break;
           case "p4_script_error":
-            addOutput(`❌ ${msg.data}`, "error");
+            addOutput(`${msg.data}`, "error");
             break;
           case "p4_script_finished":
             setIsRunning(false);
-            addOutput("✅ Phase 4 completed", "success");
+            addOutput("Phase 4 completed", "success");
             break;
           case "p4_script_failed":
             setIsRunning(false);
-            addOutput(`❌ Phase 4 failed with code ${msg.code}`, "error");
+            addOutput(`Phase 4 failed with code ${msg.code}`, "error");
             break;
           case "p4_script_stopped":
             setIsRunning(false);
-            addOutput("⏹️ Phase 4 stopped", "warning");
+            addOutput("Phase 4 stopped", "warning");
             break;
           default:
             break;
@@ -211,7 +216,7 @@ const P4AssignThemes: React.FC = () => {
           currentDataFile: filename,
         }));
         addOutput(
-          `📂 Loaded ${
+          `Loaded ${
             (data.statistics && data.statistics.processedCases) || 0
           } existing themes from ${filename}`,
           "info"
@@ -222,7 +227,7 @@ const P4AssignThemes: React.FC = () => {
         error instanceof Error
           ? error.message
           : "Unknown error loading existing themes";
-      addOutput(`❌ Failed to load existing themes: ${message}`, "error");
+      addOutput(`Failed to load existing themes: ${message}`, "error");
     }
   };
 
@@ -233,6 +238,7 @@ const P4AssignThemes: React.FC = () => {
         model,
         dataFile: selectedDataFile || undefined,
         themesFile: themesFile || undefined,
+        customInstructions: customInstructions.trim() || undefined,
       };
       const res = await fetch("/api/p4/execute", {
         method: "POST",
@@ -240,14 +246,20 @@ const P4AssignThemes: React.FC = () => {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error || "Failed to start P4");
+        const responseBody = await res.json();
+        throw new Error(responseBody.error || "Failed to start P4");
+      }
+      if (customInstructions.trim()) {
+        addOutput(
+          `Starting Phase 4 with custom instructions: "${customInstructions.trim()}"`,
+          "info"
+        );
       }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to start P4";
       setError(message);
-      addOutput(`❌ ${message}`, "error");
+      addOutput(`${message}`, "error");
     }
   };
 
@@ -262,7 +274,7 @@ const P4AssignThemes: React.FC = () => {
       const message =
         error instanceof Error ? error.message : "Failed to stop P4";
       setError(message);
-      addOutput(`❌ ${message}`, "error");
+      addOutput(`${message}`, "error");
     }
   };
 
@@ -291,7 +303,7 @@ const P4AssignThemes: React.FC = () => {
   ) => {
     try {
       if (!selectedDataFile) {
-        addOutput("❌ No data file selected", "error");
+        addOutput("No data file selected", "error");
         return;
       }
       const response = await fetch(
@@ -310,14 +322,42 @@ const P4AssignThemes: React.FC = () => {
           t.caseId === caseId ? { ...t, [themeType]: newValue } : t
         )
       );
-      addOutput(`✅ Updated ${themeType} for case ${caseId}`, "success");
+      addOutput(`Updated ${themeType} for case ${caseId}`, "success");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to update theme";
-      addOutput(`❌ Failed to update theme: ${message}`, "error");
+      addOutput(`Failed to update theme: ${message}`, "error");
       if (selectedDataFile) {
         await loadExistingThemes(selectedDataFile);
       }
+    }
+  };
+
+  const deleteAllFinalThemes = async () => {
+    if (!selectedDataFile) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(
+        `/api/data/${selectedDataFile}/delete-all-final-themes`,
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        addOutput(
+          `Cleared theme assignments from ${data.deletedCount} cases`,
+          "success"
+        );
+        // Reload themes to reflect the changes
+        await loadExistingThemes(selectedDataFile);
+        setShowDeleteConfirm(false);
+      } else {
+        const data = await res.json();
+        addOutput(`Failed to delete final themes: ${data.error}`, "error");
+      }
+    } catch (err) {
+      addOutput(`Failed to delete final themes: ${err}`, "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -391,6 +431,9 @@ const P4AssignThemes: React.FC = () => {
             value={model}
             onChange={(e) => setModel(e.target.value)}
           >
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+            <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
             <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
             <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
             <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
@@ -406,6 +449,46 @@ const P4AssignThemes: React.FC = () => {
             <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07</option>
           </select>
         </div>
+        <button
+          onClick={() => setShowInstructions(!showInstructions)}
+          className={`btn subtle ${
+            customInstructions.trim() ? "has-value" : ""
+          }`}
+          title={customInstructions.trim() || "Add custom instructions"}
+          style={{ position: "relative" }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ marginRight: 4 }}
+          >
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <line x1="10" y1="9" x2="8" y2="9" />
+          </svg>
+          Instructions
+          {customInstructions.trim() && (
+            <span
+              style={{
+                position: "absolute",
+                top: -4,
+                right: -4,
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                backgroundColor: "#3b82f6",
+              }}
+            />
+          )}
+        </button>
         <span className="spacer" />
         <span className="badge">{isRunning ? "Running" : "Stopped"}</span>
         {duration > 0 && (
@@ -414,6 +497,77 @@ const P4AssignThemes: React.FC = () => {
           </span>
         )}
       </div>
+
+      {/* Custom Instructions Panel */}
+      {showInstructions && (
+        <div
+          style={{
+            backgroundColor: "var(--card-bg)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "8px",
+            padding: "16px",
+            marginBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "12px",
+            }}
+          >
+            <label
+              htmlFor="p4-custom-instructions"
+              style={{
+                fontWeight: 500,
+                color: "var(--text-primary)",
+                fontSize: "14px",
+              }}
+            >
+              Custom Instructions
+            </label>
+            <button
+              onClick={() => setShowInstructions(false)}
+              className="btn subtle"
+              style={{ padding: "4px 8px", fontSize: "12px" }}
+            >
+              Close
+            </button>
+          </div>
+          <textarea
+            id="p4-custom-instructions"
+            value={customInstructions}
+            onChange={(e) => setCustomInstructions(e.target.value)}
+            placeholder="Add specific instructions for theme assignment...&#10;&#10;Examples:&#10;• Prefer specific themes over general ones&#10;• Consider the case context carefully&#10;• When uncertain, assign to the most encompassing theme&#10;• Pay attention to temporal and location patterns"
+            disabled={isRunning}
+            style={{
+              width: "100%",
+              minHeight: "100px",
+              padding: "12px",
+              borderRadius: "6px",
+              border: "1px solid var(--border-color)",
+              backgroundColor: "var(--input-bg)",
+              color: "var(--text-primary)",
+              fontSize: "13px",
+              lineHeight: "1.5",
+              resize: "vertical",
+              fontFamily: "inherit",
+            }}
+          />
+          <p
+            style={{
+              marginTop: "8px",
+              marginBottom: 0,
+              fontSize: "12px",
+              color: "var(--text-muted)",
+            }}
+          >
+            These instructions will guide how the AI assigns themes to cases.
+            Leave empty to use default behavior.
+          </p>
+        </div>
+      )}
 
       {error && <div className="badge warning">{error}</div>}
 
@@ -501,40 +655,104 @@ const P4AssignThemes: React.FC = () => {
                 </div>
                 <div className="stat-label">Unique Themes</div>
               </div>
+              <div className="stat-item">
+                <div className="stat-number">{output.length}</div>
+                <div className="stat-label">Updates</div>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Output */}
-      <section className="card">
-        <div className="card-header row">
-          <h3>Phase 4 output</h3>
-        </div>
-        <div className="card-body">
-          <div className="terminal" role="log" aria-live="polite">
-            {output.length === 0 ? (
-              <div className="line">No output yet</div>
-            ) : (
-              output.map((line) => (
-                <div key={line.id} className="line">
-                  <span className="tag">[{line.timestamp}]</span> {line.text}
-                </div>
-              ))
-            )}
-          </div>
+          {/* Current processing status - show whenever running */}
+          {isRunning && (
+            <div className="progress-card">
+              <div className="progress-header">
+                <div className="pulse-dot" />
+                <h4 className="progress-title">
+                  {analysisStatus.phase || "Processing"}
+                </h4>
+              </div>
+              <div className="progress-text">
+                Progress: {analysisStatus.processedCases} /{" "}
+                {analysisStatus.totalCases} cases
+                {analysisStatus.totalCases > 0 && (
+                  <span>
+                    {" "}
+                    (
+                    {(
+                      (analysisStatus.processedCases /
+                        analysisStatus.totalCases) *
+                      100
+                    ).toFixed(1)}
+                    %)
+                  </span>
+                )}
+                {duration > 0 && (
+                  <span style={{ marginLeft: 16 }}>
+                    Elapsed: {formatDuration(duration)}
+                  </span>
+                )}
+              </div>
+              <div className="progress-track">
+                <div
+                  className="progress-fill"
+                  style={{
+                    width:
+                      analysisStatus.totalCases > 0
+                        ? `${
+                            (analysisStatus.processedCases /
+                              analysisStatus.totalCases) *
+                            100
+                          }%`
+                        : "0%",
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Live activity log */}
+          {output.length > 0 && (
+            <div className="activity-log">
+              <h5 className="log-header">
+                Activity Log (last {Math.min(output.length, 30)} entries)
+              </h5>
+              <div className="log-entries">
+                {output.slice(-30).map((entry) => (
+                  <div key={entry.id} className={`log-entry ${entry.type}`}>
+                    <span className="log-timestamp">{entry.timestamp}</span>
+                    {entry.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
       {existingThemes.length > 0 && (
         <section className="card">
           <div className="card-header row">
-            <h3>Assigned themes ({existingThemes.length})</h3>
+            <h3>
+              {existingThemes.some((t) => t.theme)
+                ? `Assigned themes (${
+                    existingThemes.filter((t) => t.theme).length
+                  } of ${existingThemes.length})`
+                : `Cases to assign (${existingThemes.length})`}
+            </h3>
             <span className="spacer" />
             <div className="row" style={{ gap: 8 }}>
               <button className="btn subtle" onClick={exportThemesCSV}>
                 Export CSV
               </button>
+              {existingThemes.some((t) => t.theme) && (
+                <button
+                  className="btn danger"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={isRunning || isDeleting}
+                >
+                  Clear All Assignments
+                </button>
+              )}
             </div>
           </div>
           <div className="card-body">
@@ -576,6 +794,27 @@ const P4AssignThemes: React.FC = () => {
           </div>
         </section>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={deleteAllFinalThemes}
+        title="Clear All Theme Assignments?"
+        description={
+          <>
+            This will remove the assigned themes from{" "}
+            <strong style={{ color: "#ef4444" }}>
+              {existingThemes.filter((t) => t.theme).length} case
+              {existingThemes.filter((t) => t.theme).length !== 1 ? "s" : ""}
+            </strong>
+            . This action cannot be undone.
+          </>
+        }
+        warningMessage="The final theme definitions from P3b will be preserved. You can then re-run P4 to reassign themes."
+        confirmText={isDeleting ? "Clearing..." : "Clear Assignments"}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

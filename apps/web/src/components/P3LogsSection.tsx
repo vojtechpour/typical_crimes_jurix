@@ -23,7 +23,7 @@ const P3LogsSection: React.FC<Props> = ({
   return (
     <div className="logs-section">
       <div className="logs-header">
-        <h4>🔍 Technical Logs</h4>
+        <h4>Technical Logs</h4>
         <button
           onClick={() => setShowRawLogs(!showRawLogs)}
           className="toggle-logs-btn"

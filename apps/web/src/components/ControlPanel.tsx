@@ -10,7 +10,7 @@ const ControlPanel: React.FC<Props> = ({ changesCount, onReset, onExport }) => {
   return (
     <div className="control-panel">
       <div className="panel-left">
-        <h3>🗂️ Drag & Drop Theme Reorganizer</h3>
+        <h3>Drag & Drop Theme Reorganizer</h3>
         <p>Select two themes and drag sub-themes between them</p>
       </div>
 
@@ -20,7 +20,7 @@ const ControlPanel: React.FC<Props> = ({ changesCount, onReset, onExport }) => {
           onClick={onReset}
           title="Reset all changes"
         >
-          🔄 Reset All
+          Reset All
         </button>
       </div>
 
@@ -40,7 +40,7 @@ const ControlPanel: React.FC<Props> = ({ changesCount, onReset, onExport }) => {
           disabled={changesCount === 0}
           title="Export modified themes"
         >
-          💾 Export
+          Export
         </button>
       </div>
     </div>

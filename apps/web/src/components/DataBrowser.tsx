@@ -12,6 +12,7 @@ import ControlPanel from "./ControlPanel";
 import ChangeTracker from "./ChangeTracker";
 import Statistics from "./Statistics";
 import Modal from "./ui/Modal";
+import DeleteConfirmModal from "./ui/DeleteConfirmModal";
 import Toolbar from "./ui/Toolbar";
 
 interface DataBrowserProps {
@@ -1028,7 +1029,7 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
             className={`mode-btn ${activeMode === "browse" ? "active" : ""}`}
             onClick={() => setActiveMode("browse")}
           >
-            📖 Browse Data
+            Browse Data
           </button>
         </div>
       )}
@@ -1624,28 +1625,21 @@ const DataBrowser: React.FC<DataBrowserProps> = ({ specificFile = null }) => {
         )}
 
       {/* Delete Confirmation Dialog */}
-      <Modal
+      <DeleteConfirmModal
         isOpen={!!deleteConfirm}
-        title="🗑️ Confirm Deletion"
         onClose={cancelDelete}
-        actions={
+        onConfirm={confirmDelete}
+        title="Delete File?"
+        description={
           <>
-            <button onClick={cancelDelete} className="cancel-btn">
-              Cancel
-            </button>
-            <button onClick={confirmDelete} className="delete-confirm-btn">
-              Delete
-            </button>
+            Are you sure you want to delete{" "}
+            <strong style={{ color: "#ef4444" }}>{deleteConfirm}</strong>? This
+            action cannot be undone.
           </>
         }
-      >
-        <p>
-          Are you sure you want to delete <strong>{deleteConfirm}</strong>?
-        </p>
-        <p className="warning-text">
-          ⚠️ This action cannot be undone. The file will be permanently removed.
-        </p>
-      </Modal>
+        warningMessage="The file will be permanently removed."
+        confirmText="Delete"
+      />
     </div>
   );
 };

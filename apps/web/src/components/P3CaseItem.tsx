@@ -1,4 +1,13 @@
 import React, { useState, useEffect } from "react";
+import {
+  FiEdit2,
+  FiTrash2,
+  FiRefreshCw,
+  FiPlus,
+  FiTag,
+  FiCheck,
+  FiX,
+} from "react-icons/fi";
 import "./P3CaseItem.css";
 
 export type ThemeField = "candidate_theme" | "theme";
@@ -230,7 +239,10 @@ const P3CaseItem: React.FC<Props> = ({
             <div className="themes-tags-header">
               {(caseItem.candidate_theme || addingCandidateTheme) && (
                 <div className="theme-item">
-                  <span className="theme-label">Candidate Theme:</span>
+                  <span className="theme-label">
+                    Candidate Theme:
+                    <span className="source-badge p3">P3</span>
+                  </span>
                   {editingCandidateTheme || addingCandidateTheme ? (
                     <div className="theme-edit-container">
                       <input
@@ -247,13 +259,13 @@ const P3CaseItem: React.FC<Props> = ({
                           className="theme-save-btn"
                           disabled={!candidateThemeValue.trim()}
                         >
-                          ✓
+                          <FiCheck size={14} />
                         </button>
                         <button
                           onClick={() => cancelEdit("candidate")}
                           className="theme-cancel-btn"
                         >
-                          ✕
+                          <FiX size={14} />
                         </button>
                       </div>
                     </div>
@@ -276,14 +288,14 @@ const P3CaseItem: React.FC<Props> = ({
                           className="theme-edit-btn"
                           title="Edit candidate theme"
                         >
-                          ✏️
+                          <FiEdit2 size={14} />
                         </button>
                         <button
                           onClick={handleDeleteCandidateTheme}
                           className="theme-delete-btn"
                           title="Delete candidate theme"
                         >
-                          🗑️
+                          <FiTrash2 size={14} />
                         </button>
                       </div>
                     </div>
@@ -293,7 +305,10 @@ const P3CaseItem: React.FC<Props> = ({
 
               {(caseItem.theme || addingTheme) && (
                 <div className="theme-item">
-                  <span className="theme-label">Theme:</span>
+                  <span className="theme-label">
+                    Theme:
+                    <span className="source-badge p3b">P3b</span>
+                  </span>
                   {editingTheme || addingTheme ? (
                     <div className="theme-edit-container">
                       <input
@@ -310,13 +325,13 @@ const P3CaseItem: React.FC<Props> = ({
                           className="theme-save-btn"
                           disabled={!themeValue.trim()}
                         >
-                          ✓
+                          <FiCheck size={14} />
                         </button>
                         <button
                           onClick={() => cancelEdit("theme")}
                           className="theme-cancel-btn"
                         >
-                          ✕
+                          <FiX size={14} />
                         </button>
                       </div>
                     </div>
@@ -337,14 +352,14 @@ const P3CaseItem: React.FC<Props> = ({
                           className="theme-edit-btn"
                           title="Edit theme"
                         >
-                          ✏️
+                          <FiEdit2 size={14} />
                         </button>
                         <button
                           onClick={handleDeleteTheme}
                           className="theme-delete-btn"
                           title="Delete theme"
                         >
-                          🗑️
+                          <FiTrash2 size={14} />
                         </button>
                       </div>
                     </div>
@@ -379,7 +394,7 @@ const P3CaseItem: React.FC<Props> = ({
             type="button"
             title="Regenerate themes with custom instructions"
           >
-            🔄 Regenerate
+            <FiRefreshCw size={14} /> Regenerate
           </button>
           <button
             className="add-code-btn"
@@ -387,7 +402,7 @@ const P3CaseItem: React.FC<Props> = ({
             title="Add new code"
             onClick={handleAddNewCode}
           >
-            ➕ Add Code
+            <FiPlus size={14} /> Add Code
           </button>
         </div>
       </div>
@@ -414,7 +429,9 @@ const P3CaseItem: React.FC<Props> = ({
       {editedCodes.length > 0 && (
         <div className="codes-content">
           <div className="codes-header">
-            <h6>🏷️ Initial Codes</h6>
+            <h6>
+              <FiTag size={14} /> Initial Codes
+            </h6>
           </div>
           <div className="codes-display">
             <div className="codes-tags">
@@ -442,7 +459,7 @@ const P3CaseItem: React.FC<Props> = ({
                           type="button"
                           title="Save"
                         >
-                          ✓
+                          <FiCheck size={12} />
                         </button>
                         <button
                           className="cancel-inline-btn"
@@ -450,7 +467,7 @@ const P3CaseItem: React.FC<Props> = ({
                           type="button"
                           title="Cancel"
                         >
-                          ✕
+                          <FiX size={12} />
                         </button>
                       </div>
                     </div>
@@ -464,7 +481,7 @@ const P3CaseItem: React.FC<Props> = ({
                           title="Edit initial code"
                           onClick={() => handleStartEdit(codeIndex)}
                         >
-                          ✏️
+                          <FiEdit2 size={12} />
                         </button>
                         {editedCodes.length > 1 && (
                           <button
@@ -473,7 +490,7 @@ const P3CaseItem: React.FC<Props> = ({
                             title="Delete initial code"
                             onClick={() => handleDeleteCode(codeIndex)}
                           >
-                            🗑️
+                            <FiTrash2 size={12} />
                           </button>
                         )}
                       </div>

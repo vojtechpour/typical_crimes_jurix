@@ -1,10 +1,4 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-  useLayoutEffect,
-  useCallback,
-} from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   FiEdit2,
   FiTrash2,
@@ -122,6 +116,340 @@ type CodeGenerationItemProps = {
   isAddingMoreCodes: boolean;
 };
 
+// Memoized component to prevent flickering during progress updates
+const CodeGenerationItem = React.memo<CodeGenerationItemProps>(
+  ({
+    completion,
+    onSave,
+    onRegenerate,
+    onAddMoreCodes,
+    isSaving,
+    isRegenerating,
+    isAddingMoreCodes,
+  }) => {
+    const [editedCodes, setEditedCodes] = useState<string[]>([]);
+    const [editingIndex, setEditingIndex] = useState<number>(-1);
+    const [editValue, setEditValue] = useState<string>("");
+    const [caseTextExpanded, setCaseTextExpanded] = useState<boolean>(false);
+
+    const truncateLength = 200;
+    const shouldTruncate =
+      completion.caseText && completion.caseText.length > truncateLength;
+    const displayText =
+      shouldTruncate && !caseTextExpanded
+        ? (completion.caseText || "").substring(0, truncateLength) + "..."
+        : completion.caseText || "";
+
+    useEffect(() => {
+      try {
+        let codes: unknown[] | string = [];
+        if (Array.isArray(completion.codesText)) {
+          codes = completion.codesText;
+        } else if (typeof completion.codesText === "string") {
+          try {
+            codes = JSON.parse(completion.codesText.replace(/'/g, '"'));
+          } catch {
+            codes = [completion.codesText];
+          }
+        } else {
+          codes = [String(completion.codesText)];
+        }
+        const codesArray = Array.isArray(codes) ? codes : [codes];
+        const cleanCodes = codesArray
+          .map((code: unknown) => String(code).trim())
+          .filter((code: string) => code.length > 0);
+        setEditedCodes(
+          cleanCodes.length > 0 ? cleanCodes : ["No codes generated"]
+        );
+      } catch {
+        setEditedCodes([
+          (completion.codesText as string) || "Error parsing codes",
+        ]);
+      }
+    }, [completion.codesText]);
+
+    const handleStartEdit = (index: number) => {
+      setEditingIndex(index);
+      setEditValue(editedCodes[index] || "");
+    };
+
+    const handleSaveEdit = () => {
+      if (editingIndex < 0) return;
+      const trimmedValue = editValue.trim();
+      if (trimmedValue) {
+        const updatedCodes = [...editedCodes];
+        updatedCodes[editingIndex] = trimmedValue;
+        setEditedCodes(updatedCodes);
+        onSave(completion.caseId, updatedCodes);
+        setEditingIndex(-1);
+        setEditValue("");
+        return;
+      }
+      const isNewEmptyCode = editedCodes[editingIndex] === "";
+      if (isNewEmptyCode) {
+        const updatedCodes = editedCodes.filter(
+          (_, idx) => idx !== editingIndex
+        );
+        setEditedCodes(
+          updatedCodes.length > 0 ? updatedCodes : ["No codes generated"]
+        );
+      }
+      setEditingIndex(-1);
+      setEditValue("");
+    };
+
+    const handleCancelEdit = () => {
+      if (editingIndex >= 0 && editedCodes[editingIndex] === "") {
+        const updatedCodes = editedCodes.filter(
+          (_, idx) => idx !== editingIndex
+        );
+        setEditedCodes(
+          updatedCodes.length > 0 ? updatedCodes : ["No codes generated"]
+        );
+      }
+      setEditingIndex(-1);
+      setEditValue("");
+    };
+
+    const handleDeleteCode = (index: number) => {
+      const updatedCodes = editedCodes.filter((_, i) => i !== index);
+      const finalCodes =
+        updatedCodes.length > 0 ? updatedCodes : ["No codes generated"];
+      setEditedCodes(finalCodes);
+      onSave(completion.caseId, finalCodes);
+    };
+
+    const handleAddNewCode = () => {
+      const updatedCodes = [
+        ...editedCodes.filter((code) => code !== "No codes generated"),
+        "",
+      ];
+      setEditedCodes(updatedCodes);
+      setEditingIndex(updatedCodes.length - 1);
+      setEditValue("");
+    };
+
+    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") handleSaveEdit();
+      else if (e.key === "Escape") handleCancelEdit();
+    };
+
+    const handleRegenerate = () => {
+      onRegenerate(
+        completion.caseId,
+        completion.caseText || "",
+        typeof completion.codesText === "string"
+          ? completion.codesText
+          : JSON.stringify(completion.codesText)
+      );
+    };
+
+    const handleAddMoreCodes = () => {
+      onAddMoreCodes(
+        completion.caseId,
+        completion.caseText || "",
+        typeof completion.codesText === "string"
+          ? completion.codesText
+          : JSON.stringify(completion.codesText)
+      );
+    };
+
+    return (
+      <div className="code-generation-item">
+        <div className="item-header">
+          <div className="case-info">
+            <span className="case-id">Case {completion.caseId}</span>
+            {completion.isRegenerated && (
+              <span
+                className="regenerated-indicator"
+                title="Codes regenerated with custom instructions"
+              >
+                Regenerated
+              </span>
+            )}
+            <span className="generation-time">
+              {completion.timestamp.toLocaleTimeString()}
+            </span>
+          </div>
+          <div className="item-actions">
+            <button
+              className="regenerate-btn"
+              onClick={handleRegenerate}
+              type="button"
+              title="Regenerate codes with custom instructions"
+              disabled={isSaving || isRegenerating || isAddingMoreCodes}
+            >
+              {isRegenerating ? (
+                <>
+                  <IconLoader size={14} />
+                  <span style={{ marginLeft: 6 }}>Regenerating...</span>
+                </>
+              ) : (
+                <>
+                  <IconRefreshCw size={14} />
+                  <span style={{ marginLeft: 6 }}>Regenerate</span>
+                </>
+              )}
+            </button>
+            <button
+              className="add-more-codes-btn"
+              onClick={handleAddMoreCodes}
+              type="button"
+              title="Add more codes with AI assistance"
+              disabled={isSaving || isRegenerating || isAddingMoreCodes}
+            >
+              {isAddingMoreCodes ? (
+                <>
+                  <IconLoader size={14} />
+                  <span style={{ marginLeft: 6 }}>Adding...</span>
+                </>
+              ) : (
+                <>
+                  <IconPlus size={14} />
+                  <span style={{ marginLeft: 6 }}>Add More Codes</span>
+                </>
+              )}
+            </button>
+            <button
+              className="add-code-btn"
+              onClick={handleAddNewCode}
+              type="button"
+              title="Add new code"
+              disabled={isSaving || isRegenerating || isAddingMoreCodes}
+            >
+              {isSaving ? (
+                <>
+                  <IconLoader size={14} />
+                  <span style={{ marginLeft: 6 }}>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <IconPlus size={14} />
+                  <span style={{ marginLeft: 6 }}>Add Code</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="case-text-section">
+          <div className="case-text-header">
+            <h6>Case Description</h6>
+            {shouldTruncate && (
+              <button
+                className="expand-text-btn"
+                onClick={() => setCaseTextExpanded(!caseTextExpanded)}
+                type="button"
+              >
+                {caseTextExpanded ? "Show Less" : "Show More"}
+              </button>
+            )}
+          </div>
+          <div className="case-text-content">
+            <p className="case-text">
+              {displayText || (
+                <span
+                  style={{ color: "var(--text-muted)", fontStyle: "italic" }}
+                >
+                  Case text not available
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="codes-content">
+          <div className="codes-display">
+            <div className="codes-tags">
+              {editedCodes.map((code, index) => (
+                <div
+                  key={`${completion.caseId}-${index}`}
+                  className="code-tag-container"
+                >
+                  {editingIndex === index ? (
+                    <div className="code-edit-inline">
+                      <input
+                        type="text"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyPress}
+                        onBlur={handleSaveEdit}
+                        className="code-edit-input"
+                        placeholder="Enter code..."
+                        autoFocus
+                      />
+                      <div className="edit-buttons">
+                        <button
+                          className="save-inline-btn"
+                          onClick={handleSaveEdit}
+                          type="button"
+                          title="Save"
+                        >
+                          <IconCheck size={12} />
+                        </button>
+                        <button
+                          className="cancel-inline-btn"
+                          onClick={handleCancelEdit}
+                          type="button"
+                          title="Cancel"
+                        >
+                          <IconX size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="code-tag-wrapper">
+                      <span className="code-tag">{code}</span>
+                      {code !== "No codes generated" &&
+                        code !== "Error parsing codes" && (
+                          <div className="code-actions">
+                            <button
+                              className="edit-code-btn"
+                              onClick={() => handleStartEdit(index)}
+                              type="button"
+                              title="Edit code"
+                              disabled={isSaving}
+                            >
+                              <IconEdit2 size={12} />
+                            </button>
+                            {editedCodes.length > 1 && (
+                              <button
+                                className="delete-code-btn"
+                                onClick={() => handleDeleteCode(index)}
+                                type="button"
+                                title="Delete code"
+                                disabled={isSaving}
+                              >
+                                <IconTrash2 size={12} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  },
+  // Custom comparison function - only re-render if these props changed
+  (prevProps, nextProps) => {
+    return (
+      prevProps.completion.caseId === nextProps.completion.caseId &&
+      prevProps.completion.codesText === nextProps.completion.codesText &&
+      prevProps.completion.caseText === nextProps.completion.caseText &&
+      prevProps.completion.isRegenerated ===
+        nextProps.completion.isRegenerated &&
+      prevProps.isSaving === nextProps.isSaving &&
+      prevProps.isRegenerating === nextProps.isRegenerating &&
+      prevProps.isAddingMoreCodes === nextProps.isAddingMoreCodes
+    );
+  }
+);
+
 type RegenerateModalProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -150,24 +478,94 @@ const RegenerateModal: React.FC<RegenerateModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content regenerate-modal">
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-content regenerate-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: "800px",
+          width: "90vw",
+          maxHeight: "85vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <div className="modal-header">
           <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <IconRefreshCw size={16} /> Regenerate Codes
           </h3>
         </div>
-        <div className="modal-body">
+        <div
+          className="modal-body"
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            maxHeight: "calc(85vh - 140px)",
+          }}
+        >
           {caseText && (
             <div className="case-preview">
               <h4>Case Preview</h4>
-              <p className="case-text-preview">{caseText}</p>
+              <p
+                className="case-text-preview"
+                style={{
+                  maxHeight: "150px",
+                  overflowY: "auto",
+                  padding: "12px",
+                  backgroundColor: "rgba(0, 0, 0, 0.2)",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  lineHeight: "1.5",
+                }}
+              >
+                {caseText}
+              </p>
             </div>
           )}
 
           <div className="current-codes">
             <h4>Current Codes</h4>
-            <div className="current-codes-display">{currentCodes}</div>
+            <div
+              className="current-codes-display"
+              style={{
+                maxHeight: "120px",
+                overflowY: "auto",
+                padding: "12px",
+                backgroundColor: "rgba(0, 0, 0, 0.2)",
+                borderRadius: "6px",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "6px",
+              }}
+            >
+              {(() => {
+                try {
+                  const codes = JSON.parse(currentCodes);
+                  if (Array.isArray(codes)) {
+                    return codes.map((code, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          display: "inline-block",
+                          padding: "4px 10px",
+                          backgroundColor:
+                            "var(--accent-dim, rgba(99, 102, 241, 0.2))",
+                          color: "var(--accent, #818cf8)",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {code}
+                      </span>
+                    ));
+                  }
+                } catch {
+                  // Not valid JSON, render as-is
+                }
+                return <span style={{ fontSize: "13px" }}>{currentCodes}</span>;
+              })()}
+            </div>
           </div>
 
           <div className="instructions-input">
@@ -259,24 +657,94 @@ const AddMoreCodesModal: React.FC<AddMoreCodesModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content regenerate-modal">
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-content regenerate-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: "800px",
+          width: "90vw",
+          maxHeight: "85vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <div className="modal-header">
           <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <IconPlus size={16} /> Add More Codes
           </h3>
         </div>
-        <div className="modal-body">
+        <div
+          className="modal-body"
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            maxHeight: "calc(85vh - 140px)",
+          }}
+        >
           {caseText && (
             <div className="case-preview">
               <h4>Case Preview</h4>
-              <p className="case-text-preview">{caseText}</p>
+              <p
+                className="case-text-preview"
+                style={{
+                  maxHeight: "150px",
+                  overflowY: "auto",
+                  padding: "12px",
+                  backgroundColor: "rgba(0, 0, 0, 0.2)",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  lineHeight: "1.5",
+                }}
+              >
+                {caseText}
+              </p>
             </div>
           )}
 
           <div className="current-codes">
             <h4>Existing Codes (will not be changed)</h4>
-            <div className="current-codes-display">{currentCodes}</div>
+            <div
+              className="current-codes-display"
+              style={{
+                maxHeight: "120px",
+                overflowY: "auto",
+                padding: "12px",
+                backgroundColor: "rgba(0, 0, 0, 0.2)",
+                borderRadius: "6px",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "6px",
+              }}
+            >
+              {(() => {
+                try {
+                  const codes = JSON.parse(currentCodes);
+                  if (Array.isArray(codes)) {
+                    return codes.map((code, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          display: "inline-block",
+                          padding: "4px 10px",
+                          backgroundColor:
+                            "var(--accent-dim, rgba(99, 102, 241, 0.2))",
+                          color: "var(--accent, #818cf8)",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {code}
+                      </span>
+                    ));
+                  }
+                } catch {
+                  // Not valid JSON, render as-is
+                }
+                return <span style={{ fontSize: "13px" }}>{currentCodes}</span>;
+              })()}
+            </div>
           </div>
 
           <div className="instructions-input">
@@ -411,9 +879,7 @@ const ScriptRunner: React.FC = () => {
   >({});
   const [globalInstructions, setGlobalInstructions] = useState<string>("");
   const [model, setModel] = useState<string>("gemini-2.0-flash");
-  const [selectedInstructionPills, setSelectedInstructionPills] = useState<
-    string[]
-  >([]);
+  const [showInstructions, setShowInstructions] = useState<boolean>(false);
 
   // Search, filter, and sort state
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -433,10 +899,7 @@ const ScriptRunner: React.FC = () => {
   const wsRef = useRef<WebSocket | null>(null);
   const outputRef = useRef<HTMLDivElement | null>(null);
   const intervalRef = useRef<number | null>(null);
-  const globalTextRef = useRef<HTMLTextAreaElement | null>(null);
-  const pillsOverlayRef = useRef<HTMLDivElement | null>(null);
   const selectedDataFileRef = useRef<string>("");
-  const [pillsOverlayHeight, setPillsOverlayHeight] = useState<number>(0);
 
   const addOutput = useCallback(
     (text: string, type: LogType = "output", timestamp?: string) => {
@@ -558,7 +1021,7 @@ const ScriptRunner: React.FC = () => {
           }));
           console.log("[P2 Load Codes] Analysis status updated");
           addOutput(
-            `📂 Loaded ${result.statistics.processedCases} existing codes from ${filename}`,
+            `Loaded ${result.statistics.processedCases} existing codes from ${filename}`,
             "info"
           );
         } else {
@@ -567,7 +1030,7 @@ const ScriptRunner: React.FC = () => {
         }
       } catch (e: any) {
         console.error("[P2 Load Codes] Error loading codes:", e);
-        addOutput(`❌ Failed to load existing codes: ${e.message}`, "error");
+        addOutput(`Failed to load existing codes: ${e.message}`, "error");
       }
     },
     [addOutput]
@@ -581,43 +1044,67 @@ const ScriptRunner: React.FC = () => {
           case "progressUpdate": {
             const progressData = message.data as any;
             console.log(
-              "[P2 WebSocket] Progress update received for case:",
-              progressData.case_id
+              "[P2 WebSocket] Progress update received:",
+              progressData.phase,
+              progressData.case_id,
+              progressData.message
             );
+
+            // Log to output for user visibility
+            if (progressData.message) {
+              const logType = progressData.error
+                ? "error"
+                : progressData.codes?.length > 0
+                ? "success"
+                : "info";
+              addOutput(progressData.message, logType);
+            }
+
             setAnalysisStatus((prev) => {
-              const newCompletion: Completion = {
-                caseId: progressData.case_id,
-                codesText: Array.isArray(progressData.codes)
-                  ? JSON.stringify(progressData.codes)
-                  : typeof progressData.codes === "string"
-                  ? progressData.codes
-                  : JSON.stringify([progressData.codes]),
-                timestamp: new Date(progressData.timestamp),
-                caseText:
-                  progressData.case_text ||
-                  (progressData.progress && progressData.progress.case_text) ||
-                  "",
-              };
+              // Only create completion if we have codes (case was processed)
+              let updatedCompletions = prev.recentCompletions;
 
-              const existingIndex = prev.recentCompletions.findIndex(
-                (completion) => completion.caseId === progressData.case_id
-              );
+              if (
+                progressData.codes &&
+                progressData.codes.length > 0 &&
+                progressData.case_id
+              ) {
+                const newCompletion: Completion = {
+                  caseId: progressData.case_id,
+                  codesText: Array.isArray(progressData.codes)
+                    ? progressData.codes
+                    : typeof progressData.codes === "string"
+                    ? progressData.codes
+                    : [progressData.codes],
+                  timestamp: new Date(message.timestamp || Date.now()),
+                  caseText: progressData.case_text || "",
+                };
 
-              let updatedCompletions: Completion[];
-              if (existingIndex >= 0) {
-                updatedCompletions = [...prev.recentCompletions];
-                updatedCompletions[existingIndex] = newCompletion;
-              } else {
-                updatedCompletions = [newCompletion, ...prev.recentCompletions];
+                const existingIndex = prev.recentCompletions.findIndex(
+                  (completion) => completion.caseId === progressData.case_id
+                );
+
+                if (existingIndex >= 0) {
+                  updatedCompletions = [...prev.recentCompletions];
+                  updatedCompletions[existingIndex] = newCompletion;
+                } else {
+                  updatedCompletions = [
+                    newCompletion,
+                    ...prev.recentCompletions,
+                  ];
+                }
+                updatedCompletions = updatedCompletions.slice(0, 100);
               }
-              updatedCompletions = updatedCompletions.slice(0, 100);
 
               return {
                 ...prev,
-                processedCases: progressData.progress.processed,
-                totalCases: progressData.progress.total,
-                uniqueCodesCount: progressData.progress.unique_codes,
-                currentCase: progressData.case_id,
+                phase: progressData.phase || prev.phase,
+                processedCases:
+                  progressData.progress?.processed ?? prev.processedCases,
+                totalCases: progressData.progress?.total ?? prev.totalCases,
+                uniqueCodesCount:
+                  progressData.progress?.unique_codes ?? prev.uniqueCodesCount,
+                currentCase: progressData.case_id || prev.currentCase,
                 recentCompletions: updatedCompletions,
                 apiCalls: prev.apiCalls + 1,
               };
@@ -643,7 +1130,7 @@ const ScriptRunner: React.FC = () => {
             const bulkData = message.data as any;
             if (bulkData.case_id) {
               addOutput(
-                `🔄 Regenerating case ${bulkData.case_id}... (${bulkData.current}/${bulkData.total})`,
+                `Regenerating case ${bulkData.case_id}... (${bulkData.current}/${bulkData.total})`,
                 "info"
               );
             } else if (
@@ -651,7 +1138,7 @@ const ScriptRunner: React.FC = () => {
               bulkData.total > 0
             ) {
               addOutput(
-                `✅ Bulk regeneration completed! Updated ${bulkData.total} cases.`,
+                `Bulk regeneration completed! Updated ${bulkData.total} cases.`,
                 "success"
               );
             }
@@ -722,15 +1209,27 @@ const ScriptRunner: React.FC = () => {
   }, [selectedDataFile]);
 
   const connectWebSocket = useCallback(() => {
-    const ws = new WebSocket("ws://localhost:9000");
+    // Use the Vite proxy for WebSocket in dev, or direct connection in production
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = import.meta.env.DEV
+      ? `${wsProtocol}//${window.location.host}/ws` // Goes through Vite proxy
+      : `${wsProtocol}//${window.location.host}`; // Direct in production
+
+    console.log("[WS] Connecting to:", wsUrl);
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
-    ws.onopen = () => {};
+    ws.onopen = () => {
+      console.log("[WS] Connected successfully");
+    };
     ws.onmessage = (event: MessageEvent<string>) => handleMessage(event);
     ws.onclose = () => {
+      console.log("[WS] Connection closed, reconnecting in 3s...");
       setTimeout(connectWebSocket, 3000);
     };
-    ws.onerror = () => {};
+    ws.onerror = (err) => {
+      console.error("[WS] Error:", err);
+    };
   }, [handleMessage]);
 
   const checkScriptStatus = useCallback(async () => {
@@ -851,49 +1350,63 @@ const ScriptRunner: React.FC = () => {
     }
   }, [output]);
 
-  const hasAnyInstruction = () =>
-    selectedInstructionPills.length > 0 || (globalInstructions || "").trim();
+  const hasAnyInstruction = () => (globalInstructions || "").trim().length > 0;
 
-  const buildEffectiveInstructions = () => {
-    const pillsText = selectedInstructionPills.join(". ");
-    const freeText = (globalInstructions || "").trim();
-    return [pillsText, freeText].filter(Boolean).join(". ").trim();
-  };
-
-  const toggleInstructionPill = (pill: string) => {
-    setSelectedInstructionPills((prev) =>
-      prev.includes(pill) ? prev.filter((p) => p !== pill) : [...prev, pill]
-    );
-  };
+  const buildEffectiveInstructions = () => (globalInstructions || "").trim();
 
   const startScript = async () => {
     try {
       setError(null);
       const effectiveInstructions = buildEffectiveInstructions();
+
+      // Debug logging
+      console.log("[P2 startScript] Starting analysis with:", {
+        selectedDataFile,
+        selectedDataFileRef: selectedDataFileRef.current,
+        model,
+        hasInstructions: !!effectiveInstructions,
+      });
+
+      if (!selectedDataFile) {
+        console.error("[P2 startScript] No data file selected!");
+        setError("Please select a data file first");
+        return;
+      }
+
+      const requestBody = {
+        dataFile: selectedDataFile,
+        globalInstructions: effectiveInstructions,
+        model,
+      };
+      console.log("[P2 startScript] Request body:", requestBody);
+
       const response = await fetch("/api/script/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dataFile: selectedDataFile,
-          globalInstructions: effectiveInstructions,
-          model,
-        }),
+        body: JSON.stringify(requestBody),
       });
       const data = await response.json();
+      console.log("[P2 startScript] Response:", {
+        status: response.status,
+        ok: response.ok,
+        data,
+      });
+
       if (response.ok) {
         setIsRunning(true);
         setStartTime(Date.now());
         const methodUsed = hasAnyInstruction()
           ? "with custom instructions"
           : "using best practices";
-        addOutput(`🔄 Starting Phase 2 analysis ${methodUsed}...`, "info");
+        addOutput(`Starting Phase 2 analysis ${methodUsed}...`, "info");
       } else {
         setError(data.error || "Failed to start script");
-        addOutput(`❌ Error: ${data.error}`, "error");
+        addOutput(`Error: ${data.error}`, "error");
       }
     } catch (e: any) {
+      console.error("[P2 startScript] Exception:", e);
       setError("Failed to start script: " + e.message);
-      addOutput(`❌ Error: ${e.message}`, "error");
+      addOutput(`Error: ${e.message}`, "error");
     }
   };
 
@@ -906,7 +1419,7 @@ const ScriptRunner: React.FC = () => {
       const data = await response.json();
       if (response.ok) {
         setIsRunning(false);
-        addOutput("⏹️ Stop request sent...", "warning");
+        addOutput("Stop request sent...", "warning");
       } else {
         setError(data.error || "Failed to stop script");
       }
@@ -959,7 +1472,7 @@ const ScriptRunner: React.FC = () => {
       );
       const result = await response.json();
       if (response.ok) {
-        addOutput(`🗑️ Deleted file ${selectedDataFile}`, "warning");
+        addOutput(`Deleted file ${selectedDataFile}`, "warning");
         setSelectedDataFile("");
         setAnalysisStatus((prev) => ({
           ...prev,
@@ -974,7 +1487,7 @@ const ScriptRunner: React.FC = () => {
         throw new Error(result.error || "Failed to delete file");
       }
     } catch (e: any) {
-      addOutput(`❌ Failed to delete file: ${e.message}`, "error");
+      addOutput(`Failed to delete file: ${e.message}`, "error");
     }
   };
 
@@ -1052,7 +1565,7 @@ const ScriptRunner: React.FC = () => {
   const handleDeleteAllCodes = async () => {
     const currentFile = analysisStatus.currentDataFile || selectedDataFile;
     if (!currentFile) {
-      addOutput("❌ No data file selected", "error");
+      addOutput("No data file selected", "error");
       return;
     }
     const filename = currentFile.includes("/")
@@ -1073,7 +1586,7 @@ const ScriptRunner: React.FC = () => {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to delete codes");
       addOutput(
-        `🗑️ Deleted initial codes in ${result.casesCleared} cases from ${filename}`,
+        `Deleted initial codes in ${result.casesCleared} cases from ${filename}`,
         "warning"
       );
       setAnalysisStatus((prev) => ({
@@ -1084,7 +1597,7 @@ const ScriptRunner: React.FC = () => {
       }));
       if (filename) await loadExistingCodes(filename);
     } catch (e: any) {
-      addOutput(`❌ Failed to delete all codes: ${e.message}`, "error");
+      addOutput(`Failed to delete all codes: ${e.message}`, "error");
     }
   };
 
@@ -1093,10 +1606,7 @@ const ScriptRunner: React.FC = () => {
       setSavingCodes((prev) => ({ ...prev, [caseId]: true }));
       const currentFile = analysisStatus.currentDataFile || selectedDataFile;
       if (!currentFile) {
-        addOutput(
-          "❌ Error: No data file available for saving changes",
-          "error"
-        );
+        addOutput("Error: No data file available for saving changes", "error");
         return;
       }
       const filename = currentFile.includes("/")
@@ -1122,16 +1632,13 @@ const ScriptRunner: React.FC = () => {
               : completion
           ),
         }));
-        addOutput(
-          `✅ Saved codes for case ${caseId} to ${filename}`,
-          "success"
-        );
+        addOutput(`Saved codes for case ${caseId} to ${filename}`, "success");
       } else {
         throw new Error(result.error || "Failed to save codes");
       }
     } catch (e: any) {
       addOutput(
-        `❌ Failed to save codes for case ${caseId}: ${e.message}`,
+        `Failed to save codes for case ${caseId}: ${e.message}`,
         "error"
       );
     } finally {
@@ -1310,325 +1817,6 @@ const ScriptRunner: React.FC = () => {
     }
   };
 
-  const CodeGenerationItem: React.FC<CodeGenerationItemProps> = ({
-    completion,
-    onSave,
-    onRegenerate,
-    onAddMoreCodes,
-    isSaving,
-    isRegenerating,
-    isAddingMoreCodes,
-  }) => {
-    const [editedCodes, setEditedCodes] = useState<string[]>([]);
-    const [editingIndex, setEditingIndex] = useState<number>(-1);
-    const [editValue, setEditValue] = useState<string>("");
-    const [caseTextExpanded, setCaseTextExpanded] = useState<boolean>(false);
-
-    const truncateLength = 200;
-    const shouldTruncate =
-      completion.caseText && completion.caseText.length > truncateLength;
-    const displayText =
-      shouldTruncate && !caseTextExpanded
-        ? (completion.caseText || "").substring(0, truncateLength) + "..."
-        : completion.caseText || "";
-
-    useEffect(() => {
-      try {
-        let codes: any = null;
-        if (Array.isArray(completion.codesText)) {
-          codes = completion.codesText;
-        } else if (typeof completion.codesText === "string") {
-          try {
-            codes = JSON.parse(completion.codesText.replace(/'/g, '"'));
-          } catch {
-            codes = [completion.codesText];
-          }
-        } else {
-          codes = [String(completion.codesText)];
-        }
-        const codesArray = Array.isArray(codes) ? codes : [codes];
-        const cleanCodes = codesArray
-          .map((code: any) => String(code).trim())
-          .filter((code: string) => code.length > 0);
-        setEditedCodes(
-          cleanCodes.length > 0 ? cleanCodes : ["No codes generated"]
-        );
-      } catch {
-        setEditedCodes([completion.codesText || "Error parsing codes"] as any);
-      }
-    }, [completion.codesText]);
-
-    const handleStartEdit = (index: number) => {
-      setEditingIndex(index);
-      setEditValue(editedCodes[index] || "");
-    };
-
-    const handleSaveEdit = () => {
-      if (editingIndex < 0) return;
-
-      const trimmedValue = editValue.trim();
-
-      if (trimmedValue) {
-        const updatedCodes = [...editedCodes];
-        updatedCodes[editingIndex] = trimmedValue;
-        setEditedCodes(updatedCodes);
-        onSave(completion.caseId, updatedCodes);
-        setEditingIndex(-1);
-        setEditValue("");
-        return;
-      }
-
-      const isNewEmptyCode = editedCodes[editingIndex] === "";
-
-      if (isNewEmptyCode) {
-        const updatedCodes = editedCodes.filter(
-          (_, idx) => idx !== editingIndex
-        );
-        setEditedCodes(
-          updatedCodes.length > 0 ? updatedCodes : ["No codes generated"]
-        );
-      }
-
-      setEditingIndex(-1);
-      setEditValue("");
-    };
-
-    const handleCancelEdit = () => {
-      if (editingIndex >= 0 && editedCodes[editingIndex] === "") {
-        const updatedCodes = editedCodes.filter(
-          (_, idx) => idx !== editingIndex
-        );
-        setEditedCodes(
-          updatedCodes.length > 0 ? updatedCodes : ["No codes generated"]
-        );
-      }
-      setEditingIndex(-1);
-      setEditValue("");
-    };
-
-    const handleDeleteCode = (index: number) => {
-      const updatedCodes = editedCodes.filter((_, i) => i !== index);
-      const finalCodes =
-        updatedCodes.length > 0 ? updatedCodes : ["No codes generated"];
-      setEditedCodes(finalCodes);
-      onSave(completion.caseId, finalCodes);
-    };
-
-    const handleAddNewCode = () => {
-      const updatedCodes = [
-        ...editedCodes.filter((code) => code !== "No codes generated"),
-        "",
-      ];
-      setEditedCodes(updatedCodes);
-      setEditingIndex(updatedCodes.length - 1);
-      setEditValue("");
-    };
-
-    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") handleSaveEdit();
-      else if (e.key === "Escape") handleCancelEdit();
-    };
-
-    const handleRegenerate = () => {
-      onRegenerate(
-        completion.caseId,
-        completion.caseText || "",
-        typeof completion.codesText === "string"
-          ? completion.codesText
-          : JSON.stringify(completion.codesText)
-      );
-    };
-
-    const handleAddMoreCodes = () => {
-      onAddMoreCodes(
-        completion.caseId,
-        completion.caseText || "",
-        typeof completion.codesText === "string"
-          ? completion.codesText
-          : JSON.stringify(completion.codesText)
-      );
-    };
-
-    return (
-      <div className="code-generation-item">
-        <div className="item-header">
-          <div className="case-info">
-            <span className="case-id">Case {completion.caseId}</span>
-            {/* Removed Existing indicator per request */}
-            {completion.isRegenerated && (
-              <span
-                className="regenerated-indicator"
-                title="Codes regenerated with custom instructions"
-              >
-                🔄 Regenerated
-              </span>
-            )}
-            <span className="generation-time">
-              {completion.timestamp.toLocaleTimeString()}
-            </span>
-          </div>
-          <div className="item-actions">
-            <button
-              className="regenerate-btn"
-              onClick={handleRegenerate}
-              type="button"
-              title="Regenerate codes with custom instructions"
-              disabled={isSaving || isRegenerating || isAddingMoreCodes}
-            >
-              {isRegenerating ? (
-                <>
-                  <IconLoader size={14} />
-                  <span style={{ marginLeft: 6 }}>Regenerating...</span>
-                </>
-              ) : (
-                <>
-                  <IconRefreshCw size={14} />
-                  <span style={{ marginLeft: 6 }}>Regenerate</span>
-                </>
-              )}
-            </button>
-            <button
-              className="add-more-codes-btn"
-              onClick={handleAddMoreCodes}
-              type="button"
-              title="Add more codes with AI assistance"
-              disabled={isSaving || isRegenerating || isAddingMoreCodes}
-            >
-              {isAddingMoreCodes ? (
-                <>
-                  <IconLoader size={14} />
-                  <span style={{ marginLeft: 6 }}>Adding...</span>
-                </>
-              ) : (
-                <>
-                  <IconPlus size={14} />
-                  <span style={{ marginLeft: 6 }}>Add More Codes</span>
-                </>
-              )}
-            </button>
-            <button
-              className="add-code-btn"
-              onClick={handleAddNewCode}
-              type="button"
-              title="Add new code"
-              disabled={isSaving || isRegenerating || isAddingMoreCodes}
-            >
-              {isSaving ? (
-                <>
-                  <IconLoader size={14} />
-                  <span style={{ marginLeft: 6 }}>Saving...</span>
-                </>
-              ) : (
-                <>
-                  <IconPlus size={14} />
-                  <span style={{ marginLeft: 6 }}>Add Code</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        <div className="case-text-section">
-          <div className="case-text-header">
-            <h6>Case Description</h6>
-            {shouldTruncate && (
-              <button
-                className="expand-text-btn"
-                onClick={() => setCaseTextExpanded(!caseTextExpanded)}
-                type="button"
-              >
-                {caseTextExpanded ? "Show Less" : "Show More"}
-              </button>
-            )}
-          </div>
-          <div className="case-text-content">
-            <p className="case-text">
-              {displayText || (
-                <span
-                  style={{ color: "var(--text-muted)", fontStyle: "italic" }}
-                >
-                  Case text not available
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className="codes-content">
-          <div className="codes-display">
-            <div className="codes-tags">
-              {editedCodes.map((code, index) => (
-                <div key={index} className="code-tag-container">
-                  {editingIndex === index ? (
-                    <div className="code-edit-inline">
-                      <input
-                        type="text"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyPress}
-                        onBlur={handleSaveEdit}
-                        className="code-edit-input"
-                        placeholder="Enter code..."
-                        autoFocus
-                      />
-                      <div className="edit-buttons">
-                        <button
-                          className="save-inline-btn"
-                          onClick={handleSaveEdit}
-                          type="button"
-                          title="Save"
-                        >
-                          <IconCheck size={12} />
-                        </button>
-                        <button
-                          className="cancel-inline-btn"
-                          onClick={handleCancelEdit}
-                          type="button"
-                          title="Cancel"
-                        >
-                          <IconX size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="code-tag-wrapper">
-                      <span className="code-tag">{code}</span>
-                      {code !== "No codes generated" &&
-                        code !== "Error parsing codes" && (
-                          <div className="code-actions">
-                            <button
-                              className="edit-code-btn"
-                              onClick={() => handleStartEdit(index)}
-                              type="button"
-                              title="Edit code"
-                              disabled={isSaving}
-                            >
-                              <IconEdit2 size={12} />
-                            </button>
-                            {editedCodes.length > 1 && (
-                              <button
-                                className="delete-code-btn"
-                                onClick={() => handleDeleteCode(index)}
-                                type="button"
-                                title="Delete code"
-                                disabled={isSaving}
-                              >
-                                <IconTrash2 size={12} />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const handleRegenerateRequest = (
     caseId: string | number,
     caseText: string,
@@ -1650,7 +1838,7 @@ const ScriptRunner: React.FC = () => {
       const filename = currentFile.includes("/")
         ? currentFile.split("/").pop()!
         : currentFile;
-      addOutput(`🔄 Regenerating codes for case ${caseId}...`, "info");
+      addOutput(`Regenerating codes for case ${caseId}...`, "info");
       const response = await fetch(
         `/api/data/${encodeURIComponent(filename)}/case/${encodeURIComponent(
           caseId
@@ -1683,7 +1871,7 @@ const ScriptRunner: React.FC = () => {
           ? `with custom instructions using model: ${model}`
           : `using best practices with model: ${model}`;
         addOutput(
-          `✅ Successfully regenerated codes for case ${caseId} ${methodUsed}`,
+          `Successfully regenerated codes for case ${caseId} ${methodUsed}`,
           "success"
         );
       } else {
@@ -1691,7 +1879,7 @@ const ScriptRunner: React.FC = () => {
       }
     } catch (e: any) {
       addOutput(
-        `❌ Failed to regenerate codes for case ${caseId}: ${e.message}`,
+        `Failed to regenerate codes for case ${caseId}: ${e.message}`,
         "error"
       );
     } finally {
@@ -1730,7 +1918,7 @@ const ScriptRunner: React.FC = () => {
       const filename = currentFile.includes("/")
         ? currentFile.split("/").pop()!
         : currentFile;
-      addOutput(`✨ Adding more codes for case ${caseId}...`, "info");
+      addOutput(`Adding more codes for case ${caseId}...`, "info");
       const response = await fetch(
         `/api/data/${encodeURIComponent(filename)}/case/${encodeURIComponent(
           caseId
@@ -1763,7 +1951,7 @@ const ScriptRunner: React.FC = () => {
           ? `with custom instructions using model: ${model}`
           : `using best practices with model: ${model}`;
         addOutput(
-          `✅ Successfully added ${result.addedCount} new codes for case ${caseId} ${methodUsed}`,
+          `Successfully added ${result.addedCount} new codes for case ${caseId} ${methodUsed}`,
           "success"
         );
       } else {
@@ -1771,7 +1959,7 @@ const ScriptRunner: React.FC = () => {
       }
     } catch (e: any) {
       addOutput(
-        `❌ Failed to add more codes for case ${caseId}: ${e.message}`,
+        `Failed to add more codes for case ${caseId}: ${e.message}`,
         "error"
       );
     } finally {
@@ -1789,46 +1977,16 @@ const ScriptRunner: React.FC = () => {
     setAddMoreCodesModalData(null);
   };
 
-  const handleGlobalKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== "Backspace" && e.key !== "Delete") return;
-    const textarea = e.currentTarget;
-    const hasSelection = textarea.selectionStart !== textarea.selectionEnd;
-    if (hasSelection) return;
-    const caretIndex = textarea.selectionStart;
-    const isAtStartOrOnlyWhitespaceBefore =
-      caretIndex === 0 ||
-      globalInstructions.slice(0, caretIndex).trim().length === 0;
-    if (
-      isAtStartOrOnlyWhitespaceBefore &&
-      selectedInstructionPills.length > 0
-    ) {
-      e.preventDefault();
-      setSelectedInstructionPills((prev) => prev.slice(0, -1));
-    }
-  };
-
-  // Adjust textarea padding to account for pills overlay height
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = pillsOverlayRef.current;
-      if (!el) {
-        setPillsOverlayHeight(0);
-        return;
-      }
-      setPillsOverlayHeight(el.offsetHeight + 12);
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [selectedInstructionPills.length]);
-
   return (
     <div className="script-runner">
       <div className="toolbar">
         <button
           onClick={startScript}
-          disabled={isRunning}
+          disabled={isRunning || !selectedDataFile}
           className="btn primary"
+          title={
+            !selectedDataFile ? "Please select a data file first" : undefined
+          }
         >
           {isRunning
             ? "Running..."
@@ -1866,6 +2024,9 @@ const ScriptRunner: React.FC = () => {
             value={model}
             onChange={(e) => setModel(e.target.value)}
           >
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+            <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
             <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
             <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
             <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
@@ -1881,6 +2042,44 @@ const ScriptRunner: React.FC = () => {
             <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07</option>
           </select>
         </div>
+        <button
+          onClick={() => setShowInstructions(!showInstructions)}
+          className={`btn subtle ${hasAnyInstruction() ? "has-value" : ""}`}
+          title={globalInstructions.trim() || "Add custom instructions"}
+          style={{ position: "relative" }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ marginRight: 4 }}
+          >
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <line x1="10" y1="9" x2="8" y2="9" />
+          </svg>
+          Instructions
+          {hasAnyInstruction() && (
+            <span
+              style={{
+                position: "absolute",
+                top: -4,
+                right: -4,
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                backgroundColor: "#3b82f6",
+              }}
+            />
+          )}
+        </button>
         <span className="spacer" />
         <span className="badge">{isRunning ? "Running" : "Stopped"}</span>
         {duration > 0 && (
@@ -1889,6 +2088,77 @@ const ScriptRunner: React.FC = () => {
           </span>
         )}
       </div>
+
+      {/* Custom Instructions Panel */}
+      {showInstructions && (
+        <div
+          style={{
+            backgroundColor: "var(--card-bg)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "8px",
+            padding: "16px",
+            marginBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "12px",
+            }}
+          >
+            <label
+              htmlFor="p2-custom-instructions"
+              style={{
+                fontWeight: 500,
+                color: "var(--text-primary)",
+                fontSize: "14px",
+              }}
+            >
+              Custom Instructions
+            </label>
+            <button
+              onClick={() => setShowInstructions(false)}
+              className="btn subtle"
+              style={{ padding: "4px 8px", fontSize: "12px" }}
+            >
+              Close
+            </button>
+          </div>
+          <textarea
+            id="p2-custom-instructions"
+            value={globalInstructions}
+            onChange={(e) => setGlobalInstructions(e.target.value)}
+            placeholder="Add specific instructions for code generation...&#10;&#10;Examples:&#10;• Focus on victim characteristics&#10;• Emphasize environmental factors&#10;• Use specific crime terminology&#10;• Highlight offender behavior patterns"
+            disabled={isRunning}
+            style={{
+              width: "100%",
+              minHeight: "100px",
+              padding: "12px",
+              borderRadius: "6px",
+              border: "1px solid var(--border-color)",
+              backgroundColor: "var(--input-bg)",
+              color: "var(--text-primary)",
+              fontSize: "13px",
+              lineHeight: "1.5",
+              resize: "vertical",
+              fontFamily: "inherit",
+            }}
+          />
+          <p
+            style={{
+              marginTop: "8px",
+              marginBottom: 0,
+              fontSize: "12px",
+              color: "var(--text-muted)",
+            }}
+          >
+            These instructions will be included in the AI prompt to guide how
+            codes are generated. Leave empty to use default best practices.
+          </p>
+        </div>
+      )}
 
       {progress && (
         <div className="progress-section">
@@ -1907,6 +2177,11 @@ const ScriptRunner: React.FC = () => {
         </div>
       )}
 
+      {!selectedDataFile && (
+        <div className="badge warning">
+          Please select a data file to analyze
+        </div>
+      )}
       {error && <div className="badge warning">{error}</div>}
 
       <section className="card">
@@ -2003,112 +2278,6 @@ const ScriptRunner: React.FC = () => {
 
       <section className="card">
         <div className="card-header row">
-          <h3>Code generation instructions</h3>
-        </div>
-        <div className="card-body">
-          <div className="instructions-container">
-            <div className="instruction-examples-global">
-              <p>
-                <strong>Example instructions:</strong>
-              </p>
-              <div className="examples-grid">
-                {[
-                  "Focus on victim characteristics",
-                  "Emphasize environmental factors",
-                  "Use specific crime terminology",
-                  "Highlight offender behavior patterns",
-                  "Create detailed, specific codes",
-                  "Focus on temporal aspects",
-                  "Capture location and setting details",
-                  "Note modus operandi",
-                  "Tag items and property types",
-                  "Describe entry/exit methods",
-                  "Include witness or evidence references",
-                  "Record time-of-day and duration",
-                ].map((pill) => (
-                  <button
-                    key={pill}
-                    type="button"
-                    className={`badge ${
-                      selectedInstructionPills.includes(pill) ? "success" : ""
-                    }`}
-                    onClick={() => toggleInstructionPill(pill)}
-                    title={pill}
-                    aria-pressed={selectedInstructionPills.includes(pill)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    {pill}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="instructions-input-wrapper">
-              {selectedInstructionPills.length > 0 && (
-                <div
-                  className="instructions-pills-overlay"
-                  aria-hidden
-                  ref={pillsOverlayRef}
-                >
-                  {selectedInstructionPills.map((pill) => (
-                    <span key={pill} className="badge instructions-pill">
-                      {pill}
-                      <button
-                        type="button"
-                        className="remove"
-                        title={`Remove ${pill}`}
-                        onClick={() =>
-                          setSelectedInstructionPills((prev) =>
-                            prev.filter((p) => p !== pill)
-                          )
-                        }
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <textarea
-                ref={globalTextRef}
-                value={globalInstructions}
-                onChange={(e) => setGlobalInstructions(e.target.value)}
-                onKeyDown={handleGlobalKeyDown}
-                placeholder={
-                  selectedInstructionPills.length === 0 &&
-                  (globalInstructions || "").trim().length === 0
-                    ? "Enter your instructions for code generation across all cases, or select pills above. Left blank uses comprehensive best practices."
-                    : ""
-                }
-                className="global-instructions-textarea"
-                rows={3}
-                style={{
-                  paddingTop:
-                    selectedInstructionPills.length && pillsOverlayHeight
-                      ? pillsOverlayHeight
-                      : selectedInstructionPills.length
-                      ? 44
-                      : undefined,
-                }}
-              />
-            </div>
-
-            <div className="row" style={{ gap: 8 }}>
-              {hasAnyInstruction() ? (
-                <span className="badge success">Using custom instructions</span>
-              ) : (
-                <span className="badge info">
-                  Using comprehensive best practices
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="card-header row">
           <h3>Progress</h3>
         </div>
         <div className="card-body">
@@ -2137,24 +2306,67 @@ const ScriptRunner: React.FC = () => {
             </div>
           </div>
 
-          {analysisStatus.phase === "Processing Cases" &&
-            analysisStatus.currentCase && (
-              <div className="current-processing">
-                <h4>Currently processing</h4>
-                <div className="current-case">
-                  <span className="case-label">Case ID:</span>
-                  <span className="case-id">{analysisStatus.currentCase}</span>
-                  <span className="case-progress">
-                    ({analysisStatus.currentBatch} of{" "}
-                    {analysisStatus.totalCases})
-                  </span>
-                </div>
-                <div className="processing-indicator">
-                  <div className="pulse-dot"></div>
-                  <span>Generating initial codes…</span>
-                </div>
+          {/* Current processing status - show whenever running */}
+          {isRunning && (
+            <div className="progress-card">
+              <div className="progress-header">
+                <div className="pulse-dot" />
+                <h4 className="progress-title">
+                  {analysisStatus.phase || "Processing"}
+                  {analysisStatus.currentCase &&
+                    `: Case ${analysisStatus.currentCase}`}
+                </h4>
               </div>
-            )}
+              <div className="progress-text">
+                Progress: {analysisStatus.processedCases} /{" "}
+                {analysisStatus.totalCases} cases
+                {analysisStatus.totalCases > 0 && (
+                  <span>
+                    {" "}
+                    (
+                    {(
+                      (analysisStatus.processedCases /
+                        analysisStatus.totalCases) *
+                      100
+                    ).toFixed(1)}
+                    %)
+                  </span>
+                )}
+              </div>
+              <div className="progress-track">
+                <div
+                  className="progress-fill"
+                  style={{
+                    width:
+                      analysisStatus.totalCases > 0
+                        ? `${
+                            (analysisStatus.processedCases /
+                              analysisStatus.totalCases) *
+                            100
+                          }%`
+                        : "0%",
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Live activity log */}
+          {output.length > 0 && (
+            <div className="activity-log">
+              <h5 className="log-header">
+                Activity Log (last {Math.min(output.length, 20)} entries)
+              </h5>
+              <div className="log-entries">
+                {output.slice(-20).map((entry) => (
+                  <div key={entry.id} className={`log-entry ${entry.type}`}>
+                    <span className="log-timestamp">{entry.timestamp}</span>
+                    {entry.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {analysisStatus.recentCompletions.length > 0 && (
             <div className="live-codes-section">
@@ -2189,72 +2401,30 @@ const ScriptRunner: React.FC = () => {
               </div>
 
               {/* Search, Filter, and Sort Controls */}
-              <div
-                className="codes-controls"
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  alignItems: "center",
-                  padding: "12px 16px",
-                  backgroundColor: "rgba(255, 255, 255, 0.03)",
-                  borderRadius: "8px",
-                  marginBottom: "16px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div style={{ flex: "1 1 300px", minWidth: "200px" }}>
-                  <input
-                    type="text"
-                    placeholder="Search by case ID, codes, or text..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px 12px",
-                      backgroundColor: "rgba(255, 255, 255, 0.05)",
-                      border: "1px solid rgba(255, 255, 255, 0.1)",
-                      borderRadius: "6px",
-                      color: "#fff",
-                      fontSize: "14px",
-                      outline: "none",
-                    }}
-                  />
-                </div>
+              <div className="controls-bar">
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="Search by case ID, codes, or text..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
 
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <label className="filter-checkbox">
                   <input
                     type="checkbox"
                     checked={filterRegeneratedOnly}
                     onChange={(e) => setFilterRegeneratedOnly(e.target.checked)}
-                    style={{ cursor: "pointer" }}
                   />
-                  <span>🔄 Regenerated only</span>
+                  <span>Regenerated only</span>
                 </label>
 
                 <select
+                  className="filter-select"
                   value={sortBy}
                   onChange={(e) =>
                     setSortBy(e.target.value as "time" | "caseId" | "codeCount")
                   }
-                  style={{
-                    padding: "8px 12px",
-                    backgroundColor: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                    borderRadius: "6px",
-                    color: "#fff",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    outline: "none",
-                  }}
                 >
                   <option value="time">Sort by: Time (newest)</option>
                   <option value="caseId">Sort by: Case ID</option>
@@ -2262,18 +2432,9 @@ const ScriptRunner: React.FC = () => {
                 </select>
 
                 <select
+                  className="filter-select"
                   value={itemsPerPage}
                   onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                  style={{
-                    padding: "8px 12px",
-                    backgroundColor: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                    borderRadius: "6px",
-                    color: "#fff",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    outline: "none",
-                  }}
                 >
                   <option value={10}>Show: 10</option>
                   <option value={25}>Show: 25</option>
@@ -2289,10 +2450,6 @@ const ScriptRunner: React.FC = () => {
                       setSearchQuery("");
                       setFilterRegeneratedOnly(false);
                     }}
-                    style={{
-                      padding: "6px 12px",
-                      fontSize: "14px",
-                    }}
                   >
                     Clear filters
                   </button>
@@ -2301,14 +2458,7 @@ const ScriptRunner: React.FC = () => {
 
               <div className="codes-list">
                 {getFilteredAndSortedCompletions().length === 0 ? (
-                  <div
-                    style={{
-                      padding: "40px 20px",
-                      textAlign: "center",
-                      color: "rgba(255, 255, 255, 0.5)",
-                      fontSize: "14px",
-                    }}
-                  >
+                  <div className="codes-list-empty">
                     No cases match your search or filters.
                   </div>
                 ) : (
@@ -2330,26 +2480,8 @@ const ScriptRunner: React.FC = () => {
               {/* Pagination Controls */}
               {getFilteredAndSortedCompletions().length > 0 &&
                 totalPages > 1 && (
-                  <div
-                    className="pagination-controls"
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "16px",
-                      backgroundColor: "rgba(255, 255, 255, 0.03)",
-                      borderRadius: "8px",
-                      marginTop: "16px",
-                      flexWrap: "wrap",
-                      gap: "12px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        color: "rgba(255, 255, 255, 0.7)",
-                        fontSize: "14px",
-                      }}
-                    >
+                  <div className="pagination-bar">
+                    <div className="pagination-info">
                       Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
                       {Math.min(
                         currentPage * itemsPerPage,
@@ -2358,37 +2490,18 @@ const ScriptRunner: React.FC = () => {
                       of {getFilteredAndSortedCompletions().length} cases
                     </div>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "8px",
-                        alignItems: "center",
-                      }}
-                    >
+                    <div className="pagination-controls">
                       <button
                         className="btn subtle"
                         onClick={() =>
                           setCurrentPage((prev) => Math.max(1, prev - 1))
                         }
                         disabled={currentPage === 1}
-                        style={{
-                          padding: "6px 12px",
-                          fontSize: "14px",
-                          opacity: currentPage === 1 ? 0.5 : 1,
-                          cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                        }}
                       >
                         ← Previous
                       </button>
 
-                      {/* Page numbers */}
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "4px",
-                          alignItems: "center",
-                        }}
-                      >
+                      <div className="page-numbers">
                         {(() => {
                           const pages: React.ReactNode[] = [];
                           const maxPagesToShow = 5;
@@ -2414,11 +2527,6 @@ const ScriptRunner: React.FC = () => {
                                 key={1}
                                 className="btn subtle"
                                 onClick={() => setCurrentPage(1)}
-                                style={{
-                                  padding: "6px 12px",
-                                  fontSize: "14px",
-                                  minWidth: "40px",
-                                }}
                               >
                                 1
                               </button>
@@ -2427,10 +2535,7 @@ const ScriptRunner: React.FC = () => {
                               pages.push(
                                 <span
                                   key="ellipsis-start"
-                                  style={{
-                                    padding: "6px 8px",
-                                    color: "rgba(255, 255, 255, 0.5)",
-                                  }}
+                                  className="page-ellipsis"
                                 >
                                   ...
                                 </span>
@@ -2446,11 +2551,6 @@ const ScriptRunner: React.FC = () => {
                                   i === currentPage ? "primary" : "subtle"
                                 }`}
                                 onClick={() => setCurrentPage(i)}
-                                style={{
-                                  padding: "6px 12px",
-                                  fontSize: "14px",
-                                  minWidth: "40px",
-                                }}
                               >
                                 {i}
                               </button>
@@ -2462,10 +2562,7 @@ const ScriptRunner: React.FC = () => {
                               pages.push(
                                 <span
                                   key="ellipsis-end"
-                                  style={{
-                                    padding: "6px 8px",
-                                    color: "rgba(255, 255, 255, 0.5)",
-                                  }}
+                                  className="page-ellipsis"
                                 >
                                   ...
                                 </span>
@@ -2476,11 +2573,6 @@ const ScriptRunner: React.FC = () => {
                                 key={totalPages}
                                 className="btn subtle"
                                 onClick={() => setCurrentPage(totalPages)}
-                                style={{
-                                  padding: "6px 12px",
-                                  fontSize: "14px",
-                                  minWidth: "40px",
-                                }}
                               >
                                 {totalPages}
                               </button>
@@ -2499,15 +2591,6 @@ const ScriptRunner: React.FC = () => {
                           )
                         }
                         disabled={currentPage === totalPages}
-                        style={{
-                          padding: "6px 12px",
-                          fontSize: "14px",
-                          opacity: currentPage === totalPages ? 0.5 : 1,
-                          cursor:
-                            currentPage === totalPages
-                              ? "not-allowed"
-                              : "pointer",
-                        }}
                       >
                         Next →
                       </button>
@@ -2518,19 +2601,8 @@ const ScriptRunner: React.FC = () => {
               {/* Show summary when showing all items */}
               {getFilteredAndSortedCompletions().length > 0 &&
                 totalPages <= 1 && (
-                  <div
-                    className="more-codes-indicator"
-                    style={{
-                      textAlign: "center",
-                      padding: "16px",
-                      color: "rgba(255, 255, 255, 0.6)",
-                      fontSize: "14px",
-                    }}
-                  >
-                    <span>
-                      Showing all {getFilteredAndSortedCompletions().length}{" "}
-                      cases
-                    </span>
+                  <div className="more-codes-indicator">
+                    Showing all {getFilteredAndSortedCompletions().length} cases
                   </div>
                 )}
             </div>
@@ -2560,7 +2632,7 @@ const ScriptRunner: React.FC = () => {
 
       {results && (
         <div className="results-section">
-          <h3>📊 Analysis Results</h3>
+          <h3>Analysis Results</h3>
           {results?.progress && (
             <div className="results-progress">
               <h4>Overall Progress</h4>

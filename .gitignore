@@ -41,3 +41,10 @@ __pycache__/
 *$py.class
 venv/
 .venv/
+
+# Excel and other data formats
+*.xlsx
+*.xls
+
+# Output files (may contain case data)
+data/*_output.txt

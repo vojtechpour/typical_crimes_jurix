@@ -37,11 +37,11 @@ const DragDropContainer: React.FC<Props> = ({
     const change = currentCount - originalCount;
 
     if (change > 0) {
-      return `🟢 (+${change})`;
+      return `(+${change})`;
     } else if (change < 0) {
-      return `🔴 (${change})`;
+      return `(${change})`;
     } else {
-      return "⚪";
+      return "";
     }
   };
 

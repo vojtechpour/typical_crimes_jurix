@@ -93,14 +93,14 @@ const CandidateThemeItem: React.FC<Props> = ({
         ) : (
           <>
             <button onClick={handleEdit} className="edit-btn" title="Edit">
-              ✏️
+              Edit
             </button>
             <button
               onClick={() => onDelete(candidateTheme, side)}
               className="delete-btn"
               title="Delete"
             >
-              🗑️
+              Delete
             </button>
           </>
         )}
