@@ -44,32 +44,6 @@ jobs:
           mkdir -p deploy/web
           cp -r apps/web/dist/* deploy/web/
 
-          # Copy shared packages (compiled) with simplified package.json (no workspace: refs)
-          mkdir -p deploy/node_modules/@crime-themes/ai-analysis
-          mkdir -p deploy/node_modules/@crime-themes/shared
-
-          cp -r packages/ai-analysis/dist/* deploy/node_modules/@crime-themes/ai-analysis/
-          cat > deploy/node_modules/@crime-themes/ai-analysis/package.json << 'EOF'
-          {
-            "name": "@crime-themes/ai-analysis",
-            "version": "1.0.0",
-            "type": "module",
-            "main": "./index.js",
-            "types": "./index.d.ts"
-          }
-          EOF
-
-          cp -r packages/shared/dist/* deploy/node_modules/@crime-themes/shared/
-          cat > deploy/node_modules/@crime-themes/shared/package.json << 'EOF'
-          {
-            "name": "@crime-themes/shared",
-            "version": "1.0.0",
-            "type": "module",
-            "main": "./index.js",
-            "types": "./index.d.ts"
-          }
-          EOF
-
           # Create a production package.json for Azure
           cat > deploy/package.json << 'PKGJSON'
           {
@@ -95,10 +69,43 @@ jobs:
           }
           PKGJSON
 
-          # Install production dependencies
+          # Install production dependencies FIRST
           cd deploy
           npm install --omit=dev
           cd ..
+
+          # THEN copy shared packages (after npm install so they don't get wiped)
+          mkdir -p deploy/node_modules/@crime-themes/ai-analysis
+          mkdir -p deploy/node_modules/@crime-themes/shared
+
+          cp -r packages/ai-analysis/dist/* deploy/node_modules/@crime-themes/ai-analysis/
+          cat > deploy/node_modules/@crime-themes/ai-analysis/package.json << 'EOF'
+          {
+            "name": "@crime-themes/ai-analysis",
+            "version": "1.0.0",
+            "type": "module",
+            "main": "./index.js",
+            "types": "./index.d.ts"
+          }
+          EOF
+
+          cp -r packages/shared/dist/* deploy/node_modules/@crime-themes/shared/
+          cat > deploy/node_modules/@crime-themes/shared/package.json << 'EOF'
+          {
+            "name": "@crime-themes/shared",
+            "version": "1.0.0",
+            "type": "module",
+            "main": "./index.js",
+            "types": "./index.d.ts"
+          }
+          EOF
+
+          # Disable Azure Oryx build (we pre-built everything)
+          echo "" > deploy/.deployment
+          touch deploy/.skipNpmInstall
+
+          # Remove any tar.gz that might confuse Azure
+          rm -f deploy/node_modules.tar.gz
 
           # Show deployment structure for debugging
           echo "=== Deployment Structure ==="
@@ -107,6 +114,8 @@ jobs:
           ls -la deploy/web/ | head -10
           echo "=== Node modules ==="
           ls -la deploy/node_modules/ | head -10
+          echo "=== @crime-themes packages ==="
+          ls -la deploy/node_modules/@crime-themes/
 
       - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
@@ -134,6 +143,10 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Disable Oryx build on Azure
+        run: |
+          az webapp config appsettings set --name ${{ secrets.AZURE_WEBAPP_NAME }} --resource-group jurix_2025 --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
