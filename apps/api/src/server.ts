@@ -2137,12 +2137,24 @@ app.post("/api/p4/stop", (_req, res) => {
 // Static file serving (for production)
 // ============================================
 
-const webDistPath = path.resolve(__dirname, "../../web/dist");
-if (fs.existsSync(webDistPath)) {
+// In production deployment, web files are in ./web relative to dist/
+// In development monorepo, they're at ../../web/dist
+const webDistPaths = [
+  path.resolve(__dirname, "web"), // Production: dist/web/
+  path.resolve(__dirname, "../web"), // Alternative: api/web/
+  path.resolve(__dirname, "../../web/dist"), // Development monorepo
+];
+
+const webDistPath = webDistPaths.find((p) => fs.existsSync(p));
+
+if (webDistPath) {
+  console.log(`[Server] Serving static files from: ${webDistPath}`);
   app.use(express.static(webDistPath));
   app.get("*", (_req, res) => {
     res.sendFile(path.join(webDistPath, "index.html"));
   });
+} else {
+  console.log("[Server] No static web files found - API only mode");
 }
 
 // ============================================

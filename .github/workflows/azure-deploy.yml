@@ -36,19 +36,65 @@ jobs:
       - name: Build all packages
         run: pnpm build
 
-      - name: Copy web dist to api for serving
-        run: |
-          mkdir -p apps/api/dist/web
-          cp -r apps/web/dist/* apps/api/dist/web/
-
       - name: Create deployment package
         run: |
           mkdir -p deploy
-          cp -r apps/api/dist deploy/
-          cp -r apps/api/package.json deploy/
-          cp -r packages/ai-analysis/dist deploy/node_modules/@crime-themes/ai-analysis/
-          cp -r packages/shared/dist deploy/node_modules/@crime-themes/shared/
           
+          # Copy API dist (server.js and other compiled files)
+          cp -r apps/api/dist/* deploy/
+          
+          # Copy web dist into deploy/web (server looks for it here in production)
+          mkdir -p deploy/web
+          cp -r apps/web/dist/* deploy/web/
+          
+          # Copy shared packages (compiled) with their package.json
+          mkdir -p deploy/node_modules/@crime-themes/ai-analysis
+          mkdir -p deploy/node_modules/@crime-themes/shared
+          
+          cp -r packages/ai-analysis/dist/* deploy/node_modules/@crime-themes/ai-analysis/
+          cp packages/ai-analysis/package.json deploy/node_modules/@crime-themes/ai-analysis/
+          
+          cp -r packages/shared/dist/* deploy/node_modules/@crime-themes/shared/
+          cp packages/shared/package.json deploy/node_modules/@crime-themes/shared/
+          
+          # Create a production package.json for Azure
+          cat > deploy/package.json << 'PKGJSON'
+          {
+            "name": "crime-themes-explorer",
+            "version": "1.0.0",
+            "type": "module",
+            "main": "server.js",
+            "scripts": {
+              "start": "node server.js"
+            },
+            "engines": {
+              "node": ">=20.0.0"
+            },
+            "dependencies": {
+              "express": "^4.18.2",
+              "cors": "^2.8.5",
+              "dotenv": "^16.4.7",
+              "multer": "^2.0.2",
+              "ws": "^8.14.2",
+              "@google/generative-ai": "^0.21.0",
+              "@anthropic-ai/sdk": "^0.39.0"
+            }
+          }
+          PKGJSON
+          
+          # Install production dependencies
+          cd deploy
+          npm install --omit=dev
+          cd ..
+          
+          # Show deployment structure for debugging
+          echo "=== Deployment Structure ==="
+          ls -la deploy/
+          echo "=== Web files ==="
+          ls -la deploy/web/ | head -10
+          echo "=== Node modules ==="
+          ls -la deploy/node_modules/ | head -10
+
       - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
         with:
@@ -78,6 +124,3 @@ jobs:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: deploy/
-
-
-
