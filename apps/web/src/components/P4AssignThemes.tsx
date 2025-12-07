@@ -75,7 +75,14 @@ const P4AssignThemes: React.FC = () => {
   }, [isRunning]);
 
   const connectWebSocket = () => {
-    const ws = new WebSocket("ws://localhost:9000");
+    // Use the correct protocol and host for production vs development
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = import.meta.env.DEV
+      ? `${wsProtocol}//${window.location.host}/ws` // Goes through Vite proxy
+      : `${wsProtocol}//${window.location.host}`; // Direct in production
+
+    console.log("[P4 WS] Connecting to:", wsUrl);
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     ws.onmessage = (e: MessageEvent<string>) => {
       try {
