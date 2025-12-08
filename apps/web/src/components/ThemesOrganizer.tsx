@@ -723,8 +723,12 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
       }
 
       // Update backend - find all cases with this theme and update
-      const casesToUpdate = themesData.filter(
-        (item) => item.theme === oldThemeName
+      // For "(Unassigned)", we need to find cases where theme is null/undefined
+      const isUnassigned = oldThemeName === "(Unassigned)";
+      const casesToUpdate = themesData.filter((item) =>
+        isUnassigned
+          ? !item.theme && item.candidate_theme
+          : item.theme === oldThemeName
       );
       for (const caseItem of casesToUpdate) {
         if (onThemeUpdate) {
