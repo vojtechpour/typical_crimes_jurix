@@ -14,7 +14,7 @@ export interface ClaudeConfig {
 }
 
 const DEFAULT_CONFIG = {
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-4-5-20250929',
   temperature: 1,
   maxTokens: 2000,
 } as const;

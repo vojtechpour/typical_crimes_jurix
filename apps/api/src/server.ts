@@ -775,6 +775,106 @@ const claudeToolDeclarations = [
   },
 ];
 
+// ============================================
+// AI Suggestions Endpoint (for theme assistant)
+// ============================================
+
+app.post("/api/ai-suggestions", async (req, res) => {
+  try {
+    const { prompt, themeData, aiSettings } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: "Prompt is required" });
+    }
+
+    const modelToUse = aiSettings?.model || "gemini-2.0-flash";
+    const provider = getProviderFromModel(modelToUse);
+
+    console.log(`[AI Suggestions] Using model: ${modelToUse} (provider: ${provider})`);
+
+    // System prompt for the theme assistant
+    const systemPrompt = `You are a helpful AI assistant specializing in crime theme organization and thematic analysis. 
+Respond in JSON format when asked for suggestions. Be conversational and helpful.`;
+
+    let content: string;
+    let usage: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined;
+
+    if (provider === "claude") {
+      // Use Anthropic SDK directly for Claude models
+      const anthropic = new Anthropic({
+        apiKey: process.env["ANTHROPIC_API_KEY"],
+      });
+
+      if (!process.env["ANTHROPIC_API_KEY"]) {
+        return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
+      }
+
+      const response = await anthropic.messages.create({
+        model: modelToUse,
+        max_tokens: 2000,
+        temperature: 1,
+        system: systemPrompt,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      // Extract text content from Claude response
+      const textContent = response.content.find(block => block.type === "text");
+      content = textContent?.type === "text" ? textContent.text : "";
+      usage = {
+        promptTokens: response.usage.input_tokens,
+        completionTokens: response.usage.output_tokens,
+        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+      };
+    } else if (provider === "gemini") {
+      // Use Google Generative AI SDK directly for Gemini models
+      const genAI = new GoogleGenerativeAI(process.env["GEMINI_API_KEY"] || "");
+
+      if (!process.env["GEMINI_API_KEY"]) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const geminiModel = genAI.getGenerativeModel({
+        model: modelToUse,
+        systemInstruction: systemPrompt,
+        generationConfig: {
+          temperature: 1,
+          maxOutputTokens: 2000,
+        },
+      });
+
+      const result = await geminiModel.generateContent(prompt);
+      const response = result.response;
+      content = response.text();
+      usage = response.usageMetadata
+        ? {
+            promptTokens: response.usageMetadata.promptTokenCount ?? 0,
+            completionTokens: response.usageMetadata.candidatesTokenCount ?? 0,
+            totalTokens: response.usageMetadata.totalTokenCount ?? 0,
+          }
+        : undefined;
+    } else {
+      // Fallback to OpenAI via unified client
+      const client = getAIClient();
+      const response = await client.analyze(systemPrompt, prompt, {
+        provider,
+        model: modelToUse,
+      });
+      content = response.content;
+      usage = response.usage;
+    }
+
+    res.json({
+      content,
+      provider,
+      model: modelToUse,
+      usage,
+    });
+  } catch (error) {
+    console.error("[AI Suggestions] Error:", error);
+    res.status(500).json({ error: toError(error) });
+  }
+});
+
 app.post("/api/ai-theme-tools", async (req, res) => {
   try {
     const { prompt, model, themeData, conversationHistory } = req.body;
