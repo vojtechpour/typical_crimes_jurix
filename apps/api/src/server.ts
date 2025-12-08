@@ -468,8 +468,6 @@ app.post("/api/generate-mockup", async (req, res) => {
       });
     }
 
-    const client = getAIClient();
-
     // System prompt for generating mockup data
     const systemPrompt = `You are a data generation assistant. Your task is to generate realistic mockup case data based on the user's description.
 
@@ -498,17 +496,72 @@ Requirements:
 
     const userPrompt = `Generate ${caseCount} cases for the following domain:\n\n${prompt.trim()}`;
 
-    // Call AI to generate cases
-    const response = await client.analyze(systemPrompt, userPrompt, {
-      provider,
-      model,
-    });
+    console.log(
+      `[Mockup] Generating ${caseCount} cases with model: ${model} (provider: ${provider})`
+    );
+
+    // Call AI to generate cases - use SDK directly for proper model support
+    let responseContent: string;
+
+    if (provider === "claude") {
+      // Use Anthropic SDK directly for Claude models
+      const anthropic = new Anthropic({
+        apiKey: process.env["ANTHROPIC_API_KEY"],
+      });
+
+      if (!process.env["ANTHROPIC_API_KEY"]) {
+        return res
+          .status(500)
+          .json({ error: "ANTHROPIC_API_KEY not configured" });
+      }
+
+      const response = await anthropic.messages.create({
+        model: model || "claude-sonnet-4-5-20250929",
+        max_tokens: 4000,
+        temperature: 1,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+      });
+
+      // Extract text content from Claude response
+      const textContent = response.content.find(
+        (block) => block.type === "text"
+      );
+      responseContent = textContent?.type === "text" ? textContent.text : "";
+    } else if (provider === "gemini") {
+      // Use Google Generative AI SDK directly for Gemini models
+      const genAI = new GoogleGenerativeAI(process.env["GEMINI_API_KEY"] || "");
+
+      if (!process.env["GEMINI_API_KEY"]) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const geminiModel = genAI.getGenerativeModel({
+        model: model || "gemini-3-pro-preview",
+        systemInstruction: systemPrompt,
+        generationConfig: {
+          temperature: 1,
+          maxOutputTokens: 4000,
+        },
+      });
+
+      const result = await geminiModel.generateContent(userPrompt);
+      responseContent = result.response.text();
+    } else {
+      // Fallback to OpenAI via unified client
+      const client = getAIClient();
+      const response = await client.analyze(systemPrompt, userPrompt, {
+        provider,
+        model,
+      });
+      responseContent = response.content;
+    }
 
     // Parse the response
     let cases: Array<{ id: string; plny_skutek_short: string }>;
     try {
       // Try to extract JSON from the response (handle markdown code blocks if present)
-      let jsonContent = response.content.trim();
+      let jsonContent = responseContent.trim();
 
       // Remove markdown code blocks if present
       if (jsonContent.startsWith("```")) {
@@ -531,7 +584,7 @@ Requirements:
         throw new Error("Unexpected response format");
       }
     } catch (parseError) {
-      console.error("[Mockup] Failed to parse AI response:", response.content);
+      console.error("[Mockup] Failed to parse AI response:", responseContent);
       return res.status(500).json({
         error: "Failed to parse AI response. Please try again.",
       });
