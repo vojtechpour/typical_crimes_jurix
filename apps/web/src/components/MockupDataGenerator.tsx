@@ -19,8 +19,14 @@ type GeneratedCase = {
 
 type GenerationStatus = "idle" | "generating" | "success" | "error";
 
+// Helper to detect if a model is slower (non-flash/non-lite)
+const isSlowModel = (modelId: string): boolean => {
+  const slowPatterns = ["pro", "sonnet", "opus", "gpt-5-2025"];
+  return slowPatterns.some((p) => modelId.toLowerCase().includes(p));
+};
+
 const MockupDataGenerator: React.FC = () => {
-  const [model, setModel] = useState<string>("gemini-2.0-flash");
+  const [model, setModel] = useState<string>("gemini-3-pro-preview");
   const [caseCount, setCaseCount] = useState<number>(10);
   const [prompt, setPrompt] = useState<string>("");
   const [filename, setFilename] = useState<string>("");
@@ -146,11 +152,11 @@ const MockupDataGenerator: React.FC = () => {
                 <option value="claude-sonnet-4-5-20250929">
                   Claude Sonnet 4.5
                 </option>
-                <option value="claude-3-5-sonnet-20241022">
-                  Claude 3.5 Sonnet
+                <option value="claude-haiku-4-5-20251015">
+                  Claude Haiku 4.5
                 </option>
-                <option value="claude-3-5-haiku-20241022">
-                  Claude 3.5 Haiku
+                <option value="claude-sonnet-4-20250514">
+                  Claude Sonnet 4
                 </option>
                 <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
                 <option value="gpt-5-mini-2025-08-07">
@@ -303,8 +309,16 @@ const MockupDataGenerator: React.FC = () => {
                 />
               </div>
               <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
-                This may take a moment depending on the number of cases and AI
-                model selected.
+                {isSlowModel(model) ? (
+                  <>
+                    <strong>Note:</strong> You're using a high-quality model which may take{" "}
+                    <strong>1-3 minutes</strong> to generate {caseCount} cases. Please be patient.
+                  </>
+                ) : (
+                  <>
+                    This may take a moment depending on the number of cases.
+                  </>
+                )}
               </p>
             </div>
           </div>
