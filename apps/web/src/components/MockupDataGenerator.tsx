@@ -158,13 +158,6 @@ const MockupDataGenerator: React.FC = () => {
                 <option value="claude-sonnet-4-20250514">
                   Claude Sonnet 4
                 </option>
-                <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
-                <option value="gpt-5-mini-2025-08-07">
-                  gpt-5-mini-2025-08-07
-                </option>
-                <option value="gpt-5-nano-2025-08-07">
-                  gpt-5-nano-2025-08-07
-                </option>
               </select>
             </div>
 
@@ -311,13 +304,12 @@ const MockupDataGenerator: React.FC = () => {
               <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
                 {isSlowModel(model) ? (
                   <>
-                    <strong>Note:</strong> You're using a high-quality model which may take{" "}
-                    <strong>1-3 minutes</strong> to generate {caseCount} cases. Please be patient.
+                    <strong>Note:</strong> You're using a high-quality model
+                    which may take <strong>1-3 minutes</strong> to generate{" "}
+                    {caseCount} cases. Please be patient.
                   </>
                 ) : (
-                  <>
-                    This may take a moment depending on the number of cases.
-                  </>
+                  <>This may take a moment depending on the number of cases.</>
                 )}
               </p>
             </div>

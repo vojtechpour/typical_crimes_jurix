@@ -220,13 +220,6 @@ Only return the JSON object, no additional text.`,
                 Claude Haiku 4.5
               </option>
               <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-              <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
-              <option value="gpt-5-mini-2025-08-07">
-                gpt-5-mini-2025-08-07
-              </option>
-              <option value="gpt-5-nano-2025-08-07">
-                gpt-5-nano-2025-08-07
-              </option>
             </select>
           </div>
         )}
