@@ -1848,7 +1848,7 @@ textarea.global-instructions-textarea::placeholder,
 
   /* Scroll hint shadow on tables */
   .data-table-container::after {
-    content: '';
+    content: "";
     position: absolute;
     right: 0;
     top: 0;
@@ -2001,7 +2001,7 @@ textarea.global-instructions-textarea::placeholder,
   }
 
   /* === SPACING & TYPOGRAPHY ADJUSTMENTS === */
-  
+
   /* Card adjustments */
   .card {
     border-radius: var(--radius-m);

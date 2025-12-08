@@ -131,14 +131,18 @@ const MockupDataGenerator: React.FC = () => {
                 disabled={status === "generating"}
                 style={{ flex: 1, maxWidth: 300 }}
               >
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
                 <option value="gemini-3-pro-preview">
-                  Gemini 3 Pro Preview
+                  Gemini 3 Pro Preview (suggested)
                 </option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.5-flash-lite">
+                  Gemini 2.5 Flash-Lite
+                </option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
                 <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                <option value="gemini-2.0-flash-lite">
+                  Gemini 2.0 Flash-Lite
+                </option>
                 <option value="claude-sonnet-4-5-20250929">
                   Claude Sonnet 4.5
                 </option>
@@ -166,7 +170,7 @@ const MockupDataGenerator: React.FC = () => {
                   id="mockup-count"
                   type="range"
                   min={5}
-                  max={100}
+                  max={30}
                   step={5}
                   value={caseCount}
                   onChange={(e) => setCaseCount(Number(e.target.value))}
@@ -177,11 +181,11 @@ const MockupDataGenerator: React.FC = () => {
                   type="number"
                   className="form-input number"
                   min={5}
-                  max={100}
+                  max={30}
                   value={caseCount}
                   onChange={(e) => {
                     const val = Math.min(
-                      100,
+                      30,
                       Math.max(5, Number(e.target.value) || 5)
                     );
                     setCaseCount(val);
