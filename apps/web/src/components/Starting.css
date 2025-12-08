@@ -412,6 +412,10 @@
   line-height: 1.6;
 }
 
+.starting-footer-links {
+  margin-top: var(--space-3) !important;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .starting-container {

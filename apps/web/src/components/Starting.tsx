@@ -410,6 +410,16 @@ export default function Starting() {
           expertise. This tool assists the analysis process but expert judgment
           remains essential.
         </p>
+        <p className="starting-footer-links">
+          <a
+            href="https://github.com/vojtechpour/typical_crimes_jurix"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-link"
+          >
+            View source on GitHub →
+          </a>
+        </p>
       </footer>
     </div>
   );
