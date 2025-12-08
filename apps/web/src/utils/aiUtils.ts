@@ -190,7 +190,7 @@ IMPORTANT:
 Only return the JSON object, no additional text.`;
 
     // Log model being used for AI suggestions
-    const modelToUse = aiSettings?.model || "gemini-2.0-flash";
+    const modelToUse = aiSettings?.model || "gemini-3-pro-preview";
     console.log(`[AI] Generating theme suggestions with model: ${modelToUse}`);
 
     const response = await fetch("/api/ai-suggestions", {

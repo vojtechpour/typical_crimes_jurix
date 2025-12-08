@@ -67,7 +67,7 @@ const AiAssistant: React.FC<AiAssistantProps> = ({
 
         // Call the AI API directly for chat responses with thematic analysis context
         // Log model for chat follow-up
-        const modelToUse = model || "gemini-2.0-flash";
+        const modelToUse = model || "gemini-3-pro-preview";
         console.log(`[AI] Chat follow-up using model: ${modelToUse}`);
 
         const response = await fetch("/api/ai-suggestions", {
@@ -198,7 +198,7 @@ Only return the JSON object, no additional text.`,
             <select
               id="ai-model-select"
               className="select"
-              value={model || "gemini-2.0-flash"}
+              value={model || "gemini-3-pro-preview"}
               onChange={(e) => setAiModel && setAiModel(e.target.value)}
             >
               <option value="gemini-3-pro-preview">
@@ -219,9 +219,7 @@ Only return the JSON object, no additional text.`,
               <option value="claude-haiku-4-5-20251015">
                 Claude Haiku 4.5
               </option>
-              <option value="claude-sonnet-4-20250514">
-                Claude Sonnet 4
-              </option>
+              <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
               <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
               <option value="gpt-5-mini-2025-08-07">
                 gpt-5-mini-2025-08-07

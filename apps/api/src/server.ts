@@ -787,17 +787,25 @@ app.post("/api/ai-suggestions", async (req, res) => {
       return res.status(400).json({ error: "Prompt is required" });
     }
 
-    const modelToUse = aiSettings?.model || "gemini-2.0-flash";
+    const modelToUse = aiSettings?.model || "gemini-3-pro-preview";
     const provider = getProviderFromModel(modelToUse);
 
-    console.log(`[AI Suggestions] Using model: ${modelToUse} (provider: ${provider})`);
+    console.log(
+      `[AI Suggestions] Using model: ${modelToUse} (provider: ${provider})`
+    );
 
     // System prompt for the theme assistant
     const systemPrompt = `You are a helpful AI assistant specializing in crime theme organization and thematic analysis. 
 Respond in JSON format when asked for suggestions. Be conversational and helpful.`;
 
     let content: string;
-    let usage: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined;
+    let usage:
+      | {
+          promptTokens?: number;
+          completionTokens?: number;
+          totalTokens?: number;
+        }
+      | undefined;
 
     if (provider === "claude") {
       // Use Anthropic SDK directly for Claude models
@@ -806,7 +814,9 @@ Respond in JSON format when asked for suggestions. Be conversational and helpful
       });
 
       if (!process.env["ANTHROPIC_API_KEY"]) {
-        return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
+        return res
+          .status(500)
+          .json({ error: "ANTHROPIC_API_KEY not configured" });
       }
 
       const response = await anthropic.messages.create({
@@ -818,7 +828,9 @@ Respond in JSON format when asked for suggestions. Be conversational and helpful
       });
 
       // Extract text content from Claude response
-      const textContent = response.content.find(block => block.type === "text");
+      const textContent = response.content.find(
+        (block) => block.type === "text"
+      );
       content = textContent?.type === "text" ? textContent.text : "";
       usage = {
         promptTokens: response.usage.input_tokens,
