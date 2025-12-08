@@ -4,6 +4,8 @@
 > **Author:** Vojtěch Pour (Faculty of Law, Charles University, Prague)  
 > **Contact:** vojtech.pour@gmail.com
 
+**🚀 [Try the Live Demo](https://theme-studio-hscnbub4a7c2bkhu.polandcentral-01.azurewebsites.net/)**
+
 ## Abstract
 
 This work-in-progress paper introduces a reusable system that operationalizes thematic analysis for legal research as a reproducible, agentic workflow. Researchers upload a JSON corpus keyed by case identifiers; plain-language intent (scope, granularity, focus, presentation) is mapped to a fixed sequence of phases orchestrated from the frontend. A lightweight web UI streams intermediate outputs and offers optional checkpoints with reversible edits. The workflow is model-agnostic, multilingual, and stabilizes codebooks and candidate themes without ad-hoc prompt retuning on representative case-law datasets.
