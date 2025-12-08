@@ -366,6 +366,17 @@ input[type="range"] {
   background: var(--surface-2);
 }
 
+/* Data table container for horizontal scrolling */
+.data-table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table-container .table {
+  min-width: 600px; /* Ensure table doesn't shrink too small */
+}
+
 /* === TERMINAL OUTPUT ===================================================== */
 .terminal {
   font-family: var(--font-mono);
@@ -1586,8 +1597,87 @@ textarea.global-instructions-textarea::placeholder,
   font-size: 14px;
 }
 
+/* === MOBILE NAVIGATION ==================================================== */
+
+/* Hamburger button - hidden on desktop */
+.hamburger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-m);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 150ms ease;
+  flex-shrink: 0;
+}
+
+.hamburger-btn:hover {
+  background: var(--surface-2);
+}
+
+.hamburger-btn:focus-visible {
+  outline: var(--ring);
+  outline-offset: 2px;
+}
+
+/* Mobile menu overlay */
+.mobile-menu-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: calc(var(--z-nav) - 1);
+  animation: fade-in 200ms ease-out;
+}
+
+/* Mobile close button in sidebar */
+.mobile-close-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-m);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.mobile-close-btn:hover {
+  background: var(--surface-2);
+}
+
+/* Sidebar header for mobile */
+.sidebar-header-mobile {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-2);
+}
+
+/* Desktop-only nav section label */
+.desktop-only {
+  display: block;
+}
+
+/* Header subtitle */
+.header-subtitle {
+  display: inline;
+}
+
 /* === RESPONSIVE ========================================================== */
 @media (max-width: 768px) {
+  /* App shell - single column on mobile */
   .app-shell {
     grid-template-columns: 1fr;
     grid-template-rows: 60px 1fr;
@@ -1596,15 +1686,683 @@ textarea.global-instructions-textarea::placeholder,
       "main";
   }
 
+  /* Show hamburger button on mobile */
+  .hamburger-btn {
+    display: flex;
+  }
+
+  /* Show overlay when menu is open */
+  .mobile-menu-overlay {
+    display: block;
+  }
+
+  /* Sidebar as slide-out drawer on mobile */
   .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 85vw;
+    transform: translateX(-100%);
+    transition: transform 300ms ease;
+    z-index: var(--z-nav);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .app-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Show mobile sidebar header */
+  .sidebar-header-mobile {
+    display: flex;
+  }
+
+  .mobile-close-btn {
+    display: flex;
+  }
+
+  /* Hide desktop nav section label */
+  .desktop-only {
     display: none;
   }
 
+  /* Hide subtitle on very small screens */
+  .header-subtitle {
+    display: none;
+  }
+
+  /* Header responsive adjustments */
+  .app-header {
+    padding: 0 var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .app-header .title {
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .header-actions {
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .header-actions .row {
+    gap: var(--space-2);
+  }
+
+  .header-actions .select {
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+
+  /* Hide theme label on mobile, just show dropdown */
+  .header-actions .row label {
+    display: none;
+  }
+
+  /* Main content padding adjustment */
+  .app-main {
+    padding: var(--space-4);
+  }
+
+  /* Nav items larger touch targets on mobile */
+  .nav-item {
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+
+  /* Touch-friendly button sizes (min 44px) */
+  .btn {
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 15px;
+  }
+
+  .btn.subtle {
+    min-height: 40px;
+    padding: 10px 14px;
+  }
+
+  /* Touch-friendly inputs and selects */
+  .input,
+  .select,
+  .textarea,
+  .form-input {
+    min-height: 44px;
+    padding: 12px;
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+
+  /* Touch-friendly checkboxes and radio buttons */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    margin: 2px;
+  }
+
+  /* Touch-friendly action buttons in items */
+  .edit-code-btn,
+  .delete-code-btn,
+  .edit-btn,
+  .delete-btn {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 8px;
+  }
+
+  /* Touch-friendly badges with interactive elements */
+  .code-tag-wrapper {
+    padding: 8px 10px 8px 14px;
+  }
+
+  /* Pagination buttons touch-friendly */
+  .pagination-bar .btn {
+    min-height: 40px;
+    min-width: 44px;
+  }
+
+  /* File row buttons */
+  .file-actions .btn {
+    min-height: 40px;
+    padding: 10px 14px;
+  }
+
+  /* Table responsive - horizontal scroll */
+  .data-table-container {
+    margin: 0 calc(-1 * var(--space-4));
+    padding: 0 var(--space-4);
+    width: calc(100% + var(--space-4) * 2);
+  }
+
+  .table th,
+  .table td {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  /* Scroll hint shadow on tables */
+  .data-table-container::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    background: linear-gradient(to left, var(--surface-1), transparent);
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  /* Toolbar stacking on mobile */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .toolbar .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .toolbar .spacer {
+    display: none;
+  }
+
+  .toolbar .badge {
+    align-self: flex-start;
+  }
+
+  .toolbar .row {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  /* Controls bar vertical stacking */
+  .controls-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .controls-bar .search-input {
+    flex: none;
+    width: 100%;
+    min-width: unset;
+  }
+
+  .controls-bar .filter-checkbox {
+    justify-content: flex-start;
+  }
+
+  .controls-bar .filter-select {
+    width: 100%;
+  }
+
+  /* Pagination bar mobile layout */
+  .pagination-bar {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .pagination-bar .pagination-info {
+    order: -1;
+    text-align: center;
+  }
+
+  .pagination-bar .pagination-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pagination-bar .page-numbers {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* Form row mobile adjustments */
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .form-row label {
+    min-width: unset;
+  }
+
+  /* Selector group full width */
+  .selector-group {
+    width: 100%;
+  }
+
+  .selector-group .select {
+    width: 100%;
+  }
+
+  /* Modal mobile improvements */
+  .modal-overlay {
+    padding: var(--space-3);
+    align-items: flex-start;
+    overflow-y: auto;
+  }
+
+  .modal-content {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    margin: var(--space-4) 0;
+    border-radius: var(--radius-l);
+  }
+
+  .modal-header {
+    padding: var(--space-4);
+    position: sticky;
+    top: 0;
+    background: var(--surface-1);
+    z-index: 1;
+  }
+
+  .modal-header h3 {
+    font-size: 1rem;
+  }
+
+  .modal-body {
+    padding: var(--space-4);
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .modal-actions {
+    padding: var(--space-3) var(--space-4);
+    position: sticky;
+    bottom: 0;
+    background: var(--surface-1);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .modal-actions .btn {
+    flex: 1;
+    min-width: 100px;
+  }
+
+  /* Regenerate modal specific mobile */
+  .regenerate-modal {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  /* === SPACING & TYPOGRAPHY ADJUSTMENTS === */
+  
+  /* Card adjustments */
+  .card {
+    border-radius: var(--radius-m);
+  }
+
+  .card-header {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .card-header h2,
+  .card-header h3 {
+    font-size: 0.95rem;
+  }
+
+  .card-body {
+    padding: var(--space-4);
+  }
+
+  .card-footer {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  /* Section spacing */
+  .live-codes-section,
+  .live-themes-section,
+  .file-selection-section,
+  .upload-section {
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+
+  .section-header {
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .section-header h4 {
+    font-size: 0.9rem;
+  }
+
+  /* Item header adjustments */
+  .item-header {
+    padding: var(--space-3);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .item-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    justify-content: flex-end;
+  }
+
+  /* Case text section */
+  .case-text-section {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .codes-content,
+  .theme-content {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  /* Theme organizer */
+  .themes-organizer,
+  .themes-organizer-dual {
+    padding: var(--space-4);
+    margin: var(--space-3) 0;
+  }
+
+  .dual-column-layout {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .theme-header {
+    padding: var(--space-3);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  /* AI Assistant */
+  .ai-assistant {
+    padding: var(--space-4);
+    margin-top: var(--space-4);
+  }
+
+  .ai-assistant-header {
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+  }
+
+  .ai-instructions-section {
+    margin-bottom: var(--space-4);
+  }
+
+  .ai-suggestions {
+    padding: var(--space-4);
+  }
+
+  .suggestion-item {
+    flex-direction: column;
+    padding: var(--space-3);
+  }
+
+  .suggestion-actions {
+    flex-direction: row;
+    margin-left: 0;
+    margin-top: var(--space-3);
+  }
+
+  /* Change tracker */
+  .change-tracker {
+    padding: var(--space-4);
+    margin-top: var(--space-4);
+  }
+
+  .change-item {
+    padding: var(--space-2);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  /* Progress sections */
+  .progress-overview {
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+
+  .progress-card {
+    padding: var(--space-3);
+    margin-top: var(--space-3);
+  }
+
+  .activity-log {
+    padding: var(--space-3);
+    margin-top: var(--space-3);
+    max-height: 150px;
+  }
+
+  /* Typography adjustments */
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.15rem;
+  }
+
+  h3 {
+    font-size: 1rem;
+  }
+
+  h4 {
+    font-size: 0.95rem;
+  }
+
+  /* Badge sizing */
+  .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  /* Code tags mobile */
+  .codes-tags {
+    gap: 6px;
+  }
+
+  .code-tag {
+    font-size: 12px;
+  }
+
+  /* Theme tags */
+  .theme-tag {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  /* File row mobile */
+  .file-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3) 0;
+  }
+
+  .file-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* Runner header */
+  .runner-header {
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+
+  .runner-header h2 {
+    font-size: 1.1rem;
+  }
+
+  /* P3 Analysis specific */
+  .status-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+
+  .workflow-description {
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  /* Final themes cards */
+  .final-theme-card {
+    padding: var(--space-3);
+  }
+
+  .final-theme-header {
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  .final-theme-name {
+    font-size: 14px;
+  }
+
+  /* Mappings table mobile */
+  .mapping-header,
+  .mapping-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+    text-align: left;
+  }
+
+  .mapping-row .arrow {
+    display: none;
+  }
+
+  /* Empty states */
+  .no-data,
+  .no-files,
+  .no-changes,
+  .loading,
+  .empty-state {
+    padding: var(--space-6);
+  }
+
+  /* Stats grids */
   .stats-grid {
     grid-template-columns: 1fr 1fr;
   }
 
   .progress-stats-grid {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .app-header .title {
+    font-size: 0.9rem;
+    max-width: 140px;
+  }
+
+  /* Even smaller padding on xs */
+  .app-main {
+    padding: var(--space-3);
+  }
+
+  .card-body {
+    padding: var(--space-3);
+  }
+
+  /* Full-width buttons */
+  .btn {
+    width: 100%;
+  }
+
+  .item-actions .btn,
+  .file-actions .btn,
+  .modal-actions .btn {
+    flex: 1;
+  }
+
+  /* Stack all toolbar items */
+  .toolbar .row {
+    flex-direction: column;
+  }
+
+  .toolbar .row > * {
+    width: 100%;
+  }
+
+  /* Status grid single column */
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Smaller font sizes */
+  .table th,
+  .table td {
+    font-size: 12px;
+    padding: 8px;
+  }
+
+  /* Code actions always visible on touch */
+  .code-actions {
+    opacity: 1;
+  }
+
+  .candidate-actions {
+    opacity: 1;
+  }
+
+  .theme-actions {
+    opacity: 1;
+  }
+
+  /* Starting page adjustments */
+  .starting-container {
+    padding: var(--space-2);
+  }
+
+  .starting-hero {
+    padding: var(--space-4) var(--space-2);
+  }
+
+  .modules-grid {
+    gap: var(--space-3);
+  }
+
+  .module-card {
+    padding: var(--space-3);
+  }
+
+  /* Workflow pipeline smaller */
+  .pipeline-step {
+    min-width: 80px;
+    padding: var(--space-2);
+  }
+
+  .pipeline-num {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+
+  .pipeline-label {
+    font-size: 11px;
   }
 }

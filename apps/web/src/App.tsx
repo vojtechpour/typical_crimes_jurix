@@ -31,6 +31,13 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<NavItem["key"]>("starting");
   const [theme, setTheme] = useState<"auto" | "dark" | "light">("auto");
   const [specificDataFile, setSpecificDataFile] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Close mobile menu when clicking a nav item
+  const handleNavClick = (key: NavItem["key"]) => {
+    setCurrentTab(key);
+    setMobileMenuOpen(false);
+  };
 
   // optional: allow manual overrides on <html>
   useEffect(() => {
@@ -66,9 +73,34 @@ export default function App() {
         Skip to content
       </a>
 
+      {/* Mobile menu overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-menu-overlay"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="app-sidebar" aria-label="Primary">
-        <div className="nav-section">Workspace</div>
+      <aside
+        className={`app-sidebar ${mobileMenuOpen ? "mobile-open" : ""}`}
+        aria-label="Primary"
+      >
+        <div className="sidebar-header-mobile">
+          <span className="nav-section">Workspace</span>
+          <button
+            className="mobile-close-btn"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close menu"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div className="nav-section desktop-only">Workspace</div>
         <nav className="nav-group" role="tablist" aria-label="Main">
           {NAV.map((n) => (
             <button
@@ -77,7 +109,7 @@ export default function App() {
               aria-selected={currentTab === n.key}
               aria-current={currentTab === n.key ? "page" : undefined}
               className="nav-item"
-              onClick={() => setCurrentTab(n.key)}
+              onClick={() => handleNavClick(n.key)}
             >
               {n.label}
             </button>
@@ -87,8 +119,21 @@ export default function App() {
 
       {/* Header */}
       <header className="app-header">
+        {/* Hamburger menu button - visible on mobile */}
+        <button
+          className="hamburger-btn"
+          onClick={() => setMobileMenuOpen(true)}
+          aria-label="Open menu"
+          aria-expanded={mobileMenuOpen}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
         <div className="title">Crime Themes Explorer</div>
-        <span className="muted">Academic Edition</span>
+        <span className="muted header-subtitle">Academic Edition</span>
         <div className="header-actions">
           <ProcessSummary />
           <div className="row">
