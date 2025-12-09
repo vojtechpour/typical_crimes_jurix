@@ -82,6 +82,9 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
   );
   const [aiCommentary, setAiCommentary] = useState<string | null>(null);
 
+  // AI model selection
+  const [aiModel, setAiModel] = useState<string>("gemini-3-pro-preview");
+
   // Conversation history for AI chat
   type ConversationMessage = {
     role: "user" | "assistant";
@@ -849,7 +852,7 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: userMessage,
-          model: "gemini-3-pro-preview",
+          model: aiModel,
           themeData: allThemes,
           conversationHistory: messagesForApi,
         }),
@@ -1373,55 +1376,92 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
                   ? "1px solid var(--border)"
                   : "none",
               display: "flex",
+              flexDirection: "column",
               gap: 8,
             }}
           >
-            <input
-              type="text"
-              value={aiToolInput}
-              onChange={(e) => setAiToolInput(e.target.value)}
-              onKeyDown={(e) =>
-                e.key === "Enter" && !e.shiftKey && executeAiTools()
-              }
-              placeholder={
-                conversationHistory.length === 0
-                  ? "Ask AI to help organize themes..."
-                  : "Reply to continue the conversation..."
-              }
+            {/* Model Selector Row */}
+            <div
               style={{
-                flex: 1,
-                padding: "10px 14px",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-m)",
-                background: "var(--surface-1)",
-                color: "var(--text)",
-                fontSize: 14,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 12,
               }}
-              disabled={isExecutingTools}
-            />
-            <button
-              onClick={executeAiTools}
-              disabled={isExecutingTools || !aiToolInput.trim()}
-              className="btn primary"
-              style={{ padding: "10px 16px" }}
             >
-              {isExecutingTools ? "..." : "Send"}
-            </button>
-            {conversationHistory.length > 0 && (
-              <button
-                onClick={clearConversation}
+              <span style={{ color: "var(--text-muted)" }}>Model:</span>
+              <select
+                value={aiModel}
+                onChange={(e) => setAiModel(e.target.value)}
                 disabled={isExecutingTools}
-                className="btn"
-                title="Clear conversation"
                 style={{
-                  padding: "10px 12px",
-                  background: "var(--surface-1)",
+                  padding: "4px 8px",
                   border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-s)",
+                  background: "var(--surface-1)",
+                  color: "var(--text)",
+                  fontSize: 12,
                 }}
               >
-                🗑️
+                <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
+                <option value="claude-haiku-4-5-20251015">Claude Haiku 4.5</option>
+                <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+              </select>
+            </div>
+
+            {/* Input Row */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="text"
+                value={aiToolInput}
+                onChange={(e) => setAiToolInput(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && !e.shiftKey && executeAiTools()
+                }
+                placeholder={
+                  conversationHistory.length === 0
+                    ? "Ask AI to help organize themes..."
+                    : "Reply to continue the conversation..."
+                }
+                style={{
+                  flex: 1,
+                  padding: "10px 14px",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-m)",
+                  background: "var(--surface-1)",
+                  color: "var(--text)",
+                  fontSize: 14,
+                }}
+                disabled={isExecutingTools}
+              />
+              <button
+                onClick={executeAiTools}
+                disabled={isExecutingTools || !aiToolInput.trim()}
+                className="btn primary"
+                style={{ padding: "10px 16px" }}
+              >
+                {isExecutingTools ? "..." : "Send"}
               </button>
-            )}
+              {conversationHistory.length > 0 && (
+                <button
+                  onClick={clearConversation}
+                  disabled={isExecutingTools}
+                  className="btn"
+                  title="Clear conversation"
+                  style={{
+                    padding: "10px 12px",
+                    background: "var(--surface-1)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  🗑️
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
