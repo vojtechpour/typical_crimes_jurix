@@ -105,7 +105,7 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
   const addChange = (change: ChangeRecord) => {
     const changeItem: ChangeItem = {
       ...change,
-      details: {},
+      details: change.details || {},
       reverted: false,
     };
     setChanges((prev) => [changeItem, ...prev.slice(0, 9)]);
@@ -121,6 +121,7 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
     type,
     description,
     timestamp: new Date(),
+    details,
   });
 
   // Use the custom hook for theme handlers
@@ -984,7 +985,12 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
         });
         const change = createChange(
           "theme",
-          `AI moved "${candidateTheme}" from "${fromGroup}" to "${toGroup}"`
+          `AI moved "${candidateTheme}" from "${fromGroup}" to "${toGroup}"`,
+          {
+            candidateTheme,
+            fromTheme: fromGroup,
+            toTheme: toGroup,
+          }
         );
         addChange(change);
         break;
@@ -996,15 +1002,23 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
           theme2: string;
           newName: string;
         };
+        const theme = selectedLeftTheme || selectedRightTheme || "";
         await handleSuggestionMergeCandidates({
           candidate1: theme1,
           candidate2: theme2,
           newName,
-          theme: selectedLeftTheme || selectedRightTheme || "",
+          theme,
         });
         const change = createChange(
           "candidate_theme",
-          `AI merged "${theme1}" and "${theme2}" into "${newName}"`
+          `AI merged "${theme1}" and "${theme2}" into "${newName}"`,
+          {
+            action: "merge",
+            candidate1: theme1,
+            candidate2: theme2,
+            newName,
+            theme,
+          }
         );
         addChange(change);
         break;
@@ -1023,7 +1037,12 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
           });
           const change = createChange(
             "main_theme",
-            `AI renamed theme group "${oldName}" to "${newName}"`
+            `AI renamed theme group "${oldName}" to "${newName}"`,
+            {
+              action: "rename",
+              oldName,
+              newName,
+            }
           );
           addChange(change);
         } else {
@@ -1035,7 +1054,14 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
           });
           const change = createChange(
             "candidate_theme",
-            `AI renamed "${oldName}" to "${newName}"`
+            `AI renamed "${oldName}" to "${newName}"`,
+            {
+              action: "rename",
+              candidateTheme: oldName,
+              oldName,
+              newName,
+              theme,
+            }
           );
           addChange(change);
         }
@@ -1050,7 +1076,11 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
         });
         const change = createChange(
           "main_theme",
-          `AI created new theme group "${groupName}"`
+          `AI created new theme group "${groupName}"`,
+          {
+            action: "create",
+            newName: groupName,
+          }
         );
         addChange(change);
         break;
@@ -1066,7 +1096,12 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
           await handleSuggestionDelete({ candidateTheme: themeName, theme });
           const change = createChange(
             "candidate_theme",
-            `AI deleted candidate theme "${themeName}"`
+            `AI deleted candidate theme "${themeName}"`,
+            {
+              action: "delete",
+              candidateTheme: themeName,
+              theme,
+            }
           );
           addChange(change);
         } else {

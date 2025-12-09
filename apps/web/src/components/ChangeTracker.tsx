@@ -6,6 +6,7 @@ export type Change = {
   description: string;
   timestamp: Date;
   reverted?: boolean;
+  details?: Record<string, unknown>;
 };
 
 interface Props {
