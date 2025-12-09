@@ -20,7 +20,7 @@ type P3bStatus = {
 const P3bAnalysis: React.FC = () => {
   const [selectedDataFile, setSelectedDataFile] = useState<string>("");
   const [availableFiles, setAvailableFiles] = useState<any[]>([]);
-  const [model, setModel] = useState<string>("gemini-2.0-flash");
+  const [model, setModel] = useState<string>("gemini-3-pro-preview");
   const [customInstructions, setCustomInstructions] = useState<string>("");
   const [showInstructions, setShowInstructions] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);

@@ -878,7 +878,7 @@ const ScriptRunner: React.FC = () => {
     Record<string | number, boolean>
   >({});
   const [globalInstructions, setGlobalInstructions] = useState<string>("");
-  const [model, setModel] = useState<string>("gemini-2.0-flash");
+  const [model, setModel] = useState<string>("gemini-3-pro-preview");
   const [showInstructions, setShowInstructions] = useState<boolean>(false);
 
   // Search, filter, and sort state

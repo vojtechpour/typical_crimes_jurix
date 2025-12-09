@@ -1403,13 +1403,21 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
                   fontSize: 12,
                 }}
               >
-                <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
+                <option value="gemini-3-pro-preview">
+                  Gemini 3 Pro Preview
+                </option>
                 <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
                 <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
-                <option value="claude-haiku-4-5-20251015">Claude Haiku 4.5</option>
-                <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                <option value="claude-sonnet-4-5-20250929">
+                  Claude Sonnet 4.5
+                </option>
+                <option value="claude-haiku-4-5-20251015">
+                  Claude Haiku 4.5
+                </option>
+                <option value="claude-sonnet-4-20250514">
+                  Claude Sonnet 4
+                </option>
               </select>
             </div>
 

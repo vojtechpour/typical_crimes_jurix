@@ -31,7 +31,7 @@ const P4AssignThemes: React.FC = () => {
   const [output, setOutput] = useState<OutputLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(0);
-  const [model, setModel] = useState<string>("gemini-2.0-flash");
+  const [model, setModel] = useState<string>("gemini-3-pro-preview");
   const [customInstructions, setCustomInstructions] = useState<string>("");
   const [showInstructions, setShowInstructions] = useState<boolean>(false);
   const [availableFiles, setAvailableFiles] = useState<DataFileOption[]>([]);
