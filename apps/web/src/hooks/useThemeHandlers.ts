@@ -326,6 +326,47 @@ export const useThemeHandlers = ({
     ]
   );
 
+  // Handle deleting a theme group
+  const handleSuggestionDeleteThemeGroup = useCallback(
+    async ({ themeName }: { themeName: string }) => {
+      // Get all cases with this theme
+      const casesToUpdate = themesData.filter((item) => item.theme === themeName);
+
+      // Set theme to null for all cases in this theme group
+      for (const caseItem of casesToUpdate) {
+        if (onThemeUpdate) {
+          await onThemeUpdate(caseItem.caseId, "theme", null);
+        }
+      }
+
+      // Remove the theme from allThemes
+      setAllThemes((prev: any[]) => prev.filter((t: any) => t.name !== themeName));
+
+      // Clear selection if the deleted theme was selected
+      if (selectedLeftTheme === themeName) {
+        setSelectedLeftTheme(null);
+        setLeftCandidateThemes([]);
+      }
+      if (selectedRightTheme === themeName) {
+        setSelectedRightTheme(null);
+        setRightCandidateThemes([]);
+      }
+
+      console.log(`Deleted theme group "${themeName}"`);
+    },
+    [
+      selectedLeftTheme,
+      selectedRightTheme,
+      themesData,
+      onThemeUpdate,
+      setAllThemes,
+      setSelectedLeftTheme,
+      setSelectedRightTheme,
+      setLeftCandidateThemes,
+      setRightCandidateThemes,
+    ]
+  );
+
   // Handle creating new themes
   const handleSuggestionCreateTheme = useCallback(
     async ({ newThemeName, candidatesToMove, fromTheme, fromThemes }: { newThemeName: string; candidatesToMove: string[]; fromTheme?: string; fromThemes?: string[] }) => {
@@ -459,6 +500,7 @@ export const useThemeHandlers = ({
     handleSuggestionThemeRename,
     handleSuggestionAdd,
     handleSuggestionDelete,
+    handleSuggestionDeleteThemeGroup,
     handleSuggestionCreateTheme,
     handleSuggestionMergeThemes,
     handleSuggestionMergeCandidates,

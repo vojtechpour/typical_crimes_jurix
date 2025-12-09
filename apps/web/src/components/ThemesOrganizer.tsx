@@ -135,6 +135,7 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
     handleSuggestionThemeRename,
     handleSuggestionAdd,
     handleSuggestionDelete,
+    handleSuggestionDeleteThemeGroup,
     handleSuggestionCreateTheme,
     handleSuggestionMergeThemes,
     handleSuggestionMergeCandidates,
@@ -1105,8 +1106,17 @@ const ThemesOrganizer: React.FC<ThemesOrganizerProps> = ({
           );
           addChange(change);
         } else {
-          // For group deletion, we'd need to implement this
-          console.warn("Group deletion not implemented yet");
+          // Delete theme group
+          await handleSuggestionDeleteThemeGroup({ themeName });
+          const change = createChange(
+            "main_theme",
+            `AI deleted theme group "${themeName}"`,
+            {
+              action: "delete",
+              themeName,
+            }
+          );
+          addChange(change);
         }
         break;
       }
