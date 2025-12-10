@@ -419,6 +419,14 @@ export default function Starting() {
           >
             View source on GitHub →
           </a>
+          <a
+            href="https://www.linkedin.com/in/vojtěch-pour-781080277/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-link"
+          >
+            Connect on LinkedIn →
+          </a>
         </p>
       </footer>
     </div>
