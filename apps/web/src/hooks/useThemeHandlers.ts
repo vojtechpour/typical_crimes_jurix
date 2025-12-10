@@ -8,7 +8,11 @@ export interface ThemeItem {
 
 export interface UseThemeHandlersParams {
   themesData: ThemeItem[];
-  onThemeUpdate?: (caseId: string | number, field: string, value: any) => Promise<void> | void;
+  onThemeUpdate?: (
+    caseId: string | number,
+    field: string,
+    value: any
+  ) => Promise<void> | void;
   selectedLeftTheme: string | null;
   selectedRightTheme: string | null;
   setLeftCandidateThemes: React.Dispatch<React.SetStateAction<string[]>>;
@@ -33,12 +37,24 @@ export const useThemeHandlers = ({
 }: UseThemeHandlersParams) => {
   // Revert theme move
   const revertThemeMove = useCallback(
-    async ({ candidateTheme, fromTheme, toTheme }: { candidateTheme: string; fromTheme: string; toTheme: string }) => {
+    async ({
+      candidateTheme,
+      fromTheme,
+      toTheme,
+    }: {
+      candidateTheme: string;
+      fromTheme: string;
+      toTheme: string;
+    }) => {
       // Update local state - move back from toTheme to fromTheme
       if (selectedLeftTheme === toTheme) {
-        setLeftCandidateThemes((prev) => prev.filter((ct) => ct !== candidateTheme));
+        setLeftCandidateThemes((prev) =>
+          prev.filter((ct) => ct !== candidateTheme)
+        );
       } else if (selectedRightTheme === toTheme) {
-        setRightCandidateThemes((prev) => prev.filter((ct) => ct !== candidateTheme));
+        setRightCandidateThemes((prev) =>
+          prev.filter((ct) => ct !== candidateTheme)
+        );
       }
 
       if (selectedLeftTheme === fromTheme) {
@@ -48,7 +64,9 @@ export const useThemeHandlers = ({
       }
 
       // Update backend
-      const casesToUpdate = themesData.filter((item) => item.candidate_theme === candidateTheme);
+      const casesToUpdate = themesData.filter(
+        (item) => item.candidate_theme === candidateTheme
+      );
       for (const caseItem of casesToUpdate) {
         if (onThemeUpdate) {
           await onThemeUpdate(caseItem.caseId, "theme", fromTheme);
@@ -67,18 +85,36 @@ export const useThemeHandlers = ({
 
   // Revert candidate theme changes (rename, delete, add)
   const revertCandidateThemeChange = useCallback(
-    async ({ action, candidateTheme, oldName, newName, theme }: { action: "rename" | "delete" | "add"; candidateTheme: string; oldName?: string; newName?: string; theme: string }) => {
+    async ({
+      action,
+      candidateTheme,
+      oldName,
+      newName,
+      theme,
+    }: {
+      action: "rename" | "delete" | "add";
+      candidateTheme: string;
+      oldName?: string;
+      newName?: string;
+      theme: string;
+    }) => {
       switch (action) {
         case "rename":
           // Rename back from newName to oldName
           if (selectedLeftTheme === theme) {
-            setLeftCandidateThemes((prev) => prev.map((ct) => (ct === newName ? (oldName as string) : ct)));
+            setLeftCandidateThemes((prev) =>
+              prev.map((ct) => (ct === newName ? (oldName as string) : ct))
+            );
           } else if (selectedRightTheme === theme) {
-            setRightCandidateThemes((prev) => prev.map((ct) => (ct === newName ? (oldName as string) : ct)));
+            setRightCandidateThemes((prev) =>
+              prev.map((ct) => (ct === newName ? (oldName as string) : ct))
+            );
           }
 
           // Update backend
-          const casesToUpdate = themesData.filter((item) => item.candidate_theme === newName);
+          const casesToUpdate = themesData.filter(
+            (item) => item.candidate_theme === newName
+          );
           for (const caseItem of casesToUpdate) {
             if (onThemeUpdate) {
               await onThemeUpdate(caseItem.caseId, "candidate_theme", oldName);
@@ -98,9 +134,13 @@ export const useThemeHandlers = ({
         case "add":
           // Remove the added candidate theme
           if (selectedLeftTheme === theme) {
-            setLeftCandidateThemes((prev) => prev.filter((ct) => ct !== candidateTheme));
+            setLeftCandidateThemes((prev) =>
+              prev.filter((ct) => ct !== candidateTheme)
+            );
           } else if (selectedRightTheme === theme) {
-            setRightCandidateThemes((prev) => prev.filter((ct) => ct !== candidateTheme));
+            setRightCandidateThemes((prev) =>
+              prev.filter((ct) => ct !== candidateTheme)
+            );
           }
           break;
       }
@@ -117,13 +157,23 @@ export const useThemeHandlers = ({
 
   // Revert main theme name changes
   const revertMainThemeChange = useCallback(
-    async ({ action, oldName, newName }: { action: string; oldName: string; newName: string }) => {
+    async ({
+      action,
+      oldName,
+      newName,
+    }: {
+      action: string;
+      oldName: string;
+      newName: string;
+    }) => {
       if (action !== "rename") return;
 
       try {
         // Update local state - rename back from newName to oldName
         setAllThemes((prev: any[]) =>
-          prev.map((theme) => (theme.name === newName ? { ...theme, name: oldName } : theme))
+          prev.map((theme) =>
+            theme.name === newName ? { ...theme, name: oldName } : theme
+          )
         );
 
         // Update selected themes if they match
@@ -135,7 +185,9 @@ export const useThemeHandlers = ({
         }
 
         // Update backend - find all cases with the new theme name and revert to old name
-        const casesToUpdate = themesData.filter((item) => item.theme === newName);
+        const casesToUpdate = themesData.filter(
+          (item) => item.theme === newName
+        );
         for (const caseItem of casesToUpdate) {
           if (onThemeUpdate) {
             await onThemeUpdate(caseItem.caseId, "theme", oldName);
@@ -159,9 +211,19 @@ export const useThemeHandlers = ({
 
   // Handle different types of AI suggestions
   const handleSuggestionMove = useCallback(
-    async ({ candidateTheme, fromTheme, toTheme }: { candidateTheme: string; fromTheme: string; toTheme: string }) => {
+    async ({
+      candidateTheme,
+      fromTheme,
+      toTheme,
+    }: {
+      candidateTheme: string;
+      fromTheme: string;
+      toTheme: string;
+    }) => {
       // Similar to existing drag and drop logic
-      const casesToUpdate = themesData.filter((item) => item.candidate_theme === candidateTheme);
+      const casesToUpdate = themesData.filter(
+        (item) => item.candidate_theme === candidateTheme
+      );
 
       for (const caseItem of casesToUpdate) {
         if (onThemeUpdate) {
@@ -171,9 +233,13 @@ export const useThemeHandlers = ({
 
       // Update local state
       if (selectedLeftTheme === fromTheme) {
-        setLeftCandidateThemes((prev) => prev.filter((ct) => ct !== candidateTheme));
+        setLeftCandidateThemes((prev) =>
+          prev.filter((ct) => ct !== candidateTheme)
+        );
       } else if (selectedRightTheme === fromTheme) {
-        setRightCandidateThemes((prev) => prev.filter((ct) => ct !== candidateTheme));
+        setRightCandidateThemes((prev) =>
+          prev.filter((ct) => ct !== candidateTheme)
+        );
       }
 
       if (selectedLeftTheme === toTheme) {
@@ -194,9 +260,19 @@ export const useThemeHandlers = ({
 
   // Handle moving multiple candidates
   const handleSuggestionMoveMultiple = useCallback(
-    async ({ candidates, fromTheme, toTheme }: { candidates: string[]; fromTheme: string; toTheme: string }) => {
+    async ({
+      candidates,
+      fromTheme,
+      toTheme,
+    }: {
+      candidates: string[];
+      fromTheme: string;
+      toTheme: string;
+    }) => {
       for (const candidateTheme of candidates) {
-        const casesToUpdate = themesData.filter((item) => item.candidate_theme === candidateTheme);
+        const casesToUpdate = themesData.filter(
+          (item) => item.candidate_theme === candidateTheme
+        );
 
         for (const caseItem of casesToUpdate) {
           if (onThemeUpdate) {
@@ -206,9 +282,13 @@ export const useThemeHandlers = ({
 
         // Update local state
         if (selectedLeftTheme === fromTheme) {
-          setLeftCandidateThemes((prev) => prev.filter((ct) => ct !== candidateTheme));
+          setLeftCandidateThemes((prev) =>
+            prev.filter((ct) => ct !== candidateTheme)
+          );
         } else if (selectedRightTheme === fromTheme) {
-          setRightCandidateThemes((prev) => prev.filter((ct) => ct !== candidateTheme));
+          setRightCandidateThemes((prev) =>
+            prev.filter((ct) => ct !== candidateTheme)
+          );
         }
 
         if (selectedLeftTheme === toTheme) {
@@ -229,21 +309,39 @@ export const useThemeHandlers = ({
   );
 
   const handleSuggestionRename = useCallback(
-    async ({ currentName, suggestedName, theme }: { currentName: string; suggestedName: string; theme: string }) => {
+    async ({
+      currentName,
+      suggestedName,
+      theme,
+    }: {
+      currentName: string;
+      suggestedName: string;
+      theme: string;
+    }) => {
       // Similar to existing rename logic
-      const casesToUpdate = themesData.filter((item) => item.candidate_theme === currentName);
+      const casesToUpdate = themesData.filter(
+        (item) => item.candidate_theme === currentName
+      );
 
       for (const caseItem of casesToUpdate) {
         if (onThemeUpdate) {
-          await onThemeUpdate(caseItem.caseId, "candidate_theme", suggestedName);
+          await onThemeUpdate(
+            caseItem.caseId,
+            "candidate_theme",
+            suggestedName
+          );
         }
       }
 
       // Update local state
       if (selectedLeftTheme === theme) {
-        setLeftCandidateThemes((prev) => prev.map((ct) => (ct === currentName ? suggestedName : ct)));
+        setLeftCandidateThemes((prev) =>
+          prev.map((ct) => (ct === currentName ? suggestedName : ct))
+        );
       } else if (selectedRightTheme === theme) {
-        setRightCandidateThemes((prev) => prev.map((ct) => (ct === currentName ? suggestedName : ct)));
+        setRightCandidateThemes((prev) =>
+          prev.map((ct) => (ct === currentName ? suggestedName : ct))
+        );
       }
     },
     [
@@ -257,9 +355,17 @@ export const useThemeHandlers = ({
   );
 
   const handleSuggestionThemeRename = useCallback(
-    async ({ currentName, suggestedName }: { currentName: string; suggestedName: string }) => {
+    async ({
+      currentName,
+      suggestedName,
+    }: {
+      currentName: string;
+      suggestedName: string;
+    }) => {
       // Similar to existing theme rename logic
-      const casesToUpdate = themesData.filter((item) => item.theme === currentName);
+      const casesToUpdate = themesData.filter(
+        (item) => item.theme === currentName
+      );
 
       for (const caseItem of casesToUpdate) {
         if (onThemeUpdate) {
@@ -269,11 +375,15 @@ export const useThemeHandlers = ({
 
       // Update local state
       setAllThemes((prev: any[]) =>
-        prev.map((theme) => (theme.name === currentName ? { ...theme, name: suggestedName } : theme))
+        prev.map((theme) =>
+          theme.name === currentName ? { ...theme, name: suggestedName } : theme
+        )
       );
 
-      if (selectedLeftTheme === currentName) setSelectedLeftTheme(suggestedName);
-      if (selectedRightTheme === currentName) setSelectedRightTheme(suggestedName);
+      if (selectedLeftTheme === currentName)
+        setSelectedLeftTheme(suggestedName);
+      if (selectedRightTheme === currentName)
+        setSelectedRightTheme(suggestedName);
     },
     [
       selectedLeftTheme,
@@ -287,7 +397,13 @@ export const useThemeHandlers = ({
   );
 
   const handleSuggestionAdd = useCallback(
-    async ({ candidateTheme, theme }: { candidateTheme: string; theme: string }) => {
+    async ({
+      candidateTheme,
+      theme,
+    }: {
+      candidateTheme: string;
+      theme: string;
+    }) => {
       // Add new candidate theme
       if (selectedLeftTheme === theme) {
         setLeftCandidateThemes((prev) => [...prev, candidateTheme]);
@@ -295,13 +411,26 @@ export const useThemeHandlers = ({
         setRightCandidateThemes((prev) => [...prev, candidateTheme]);
       }
     },
-    [selectedLeftTheme, selectedRightTheme, setLeftCandidateThemes, setRightCandidateThemes]
+    [
+      selectedLeftTheme,
+      selectedRightTheme,
+      setLeftCandidateThemes,
+      setRightCandidateThemes,
+    ]
   );
 
   const handleSuggestionDelete = useCallback(
-    async ({ candidateTheme, theme }: { candidateTheme: string; theme: string }) => {
+    async ({
+      candidateTheme,
+      theme,
+    }: {
+      candidateTheme: string;
+      theme: string;
+    }) => {
       // Delete candidate theme
-      const casesToUpdate = themesData.filter((item) => item.candidate_theme === candidateTheme);
+      const casesToUpdate = themesData.filter(
+        (item) => item.candidate_theme === candidateTheme
+      );
 
       for (const caseItem of casesToUpdate) {
         if (onThemeUpdate) {
@@ -311,9 +440,13 @@ export const useThemeHandlers = ({
 
       // Update local state
       if (selectedLeftTheme === theme) {
-        setLeftCandidateThemes((prev) => prev.filter((ct) => ct !== candidateTheme));
+        setLeftCandidateThemes((prev) =>
+          prev.filter((ct) => ct !== candidateTheme)
+        );
       } else if (selectedRightTheme === theme) {
-        setRightCandidateThemes((prev) => prev.filter((ct) => ct !== candidateTheme));
+        setRightCandidateThemes((prev) =>
+          prev.filter((ct) => ct !== candidateTheme)
+        );
       }
     },
     [
@@ -330,7 +463,9 @@ export const useThemeHandlers = ({
   const handleSuggestionDeleteThemeGroup = useCallback(
     async ({ themeName }: { themeName: string }) => {
       // Get all cases with this theme
-      const casesToUpdate = themesData.filter((item) => item.theme === themeName);
+      const casesToUpdate = themesData.filter(
+        (item) => item.theme === themeName
+      );
 
       // Set theme to null for all cases in this theme group
       for (const caseItem of casesToUpdate) {
@@ -340,7 +475,9 @@ export const useThemeHandlers = ({
       }
 
       // Remove the theme from allThemes
-      setAllThemes((prev: any[]) => prev.filter((t: any) => t.name !== themeName));
+      setAllThemes((prev: any[]) =>
+        prev.filter((t: any) => t.name !== themeName)
+      );
 
       // Clear selection if the deleted theme was selected
       if (selectedLeftTheme === themeName) {
@@ -369,11 +506,23 @@ export const useThemeHandlers = ({
 
   // Handle creating new themes
   const handleSuggestionCreateTheme = useCallback(
-    async ({ newThemeName, candidatesToMove, fromTheme, fromThemes }: { newThemeName: string; candidatesToMove: string[]; fromTheme?: string; fromThemes?: string[] }) => {
+    async ({
+      newThemeName,
+      candidatesToMove,
+      fromTheme,
+      fromThemes,
+    }: {
+      newThemeName: string;
+      candidatesToMove: string[];
+      fromTheme?: string;
+      fromThemes?: string[];
+    }) => {
       try {
         // Move candidates from their current themes to the new theme in backend
         for (const candidateTheme of candidatesToMove) {
-          const casesToUpdate = themesData.filter((item) => item.candidate_theme === candidateTheme);
+          const casesToUpdate = themesData.filter(
+            (item) => item.candidate_theme === candidateTheme
+          );
 
           for (const caseItem of casesToUpdate) {
             if (onThemeUpdate) {
@@ -382,7 +531,9 @@ export const useThemeHandlers = ({
           }
         }
 
-        console.log(`Created new theme "${newThemeName}" with ${candidatesToMove.length} candidates`);
+        console.log(
+          `Created new theme "${newThemeName}" with ${candidatesToMove.length} candidates`
+        );
 
         // The useEffect in ThemesOrganizer will automatically refresh the themes from themesData
         // and preserve the current selections, so we don't need to manually update local state here
@@ -396,7 +547,15 @@ export const useThemeHandlers = ({
 
   // Handle merging themes
   const handleSuggestionMergeThemes = useCallback(
-    async ({ theme1, theme2, newThemeName }: { theme1: string; theme2: string; newThemeName: string }) => {
+    async ({
+      theme1,
+      theme2,
+      newThemeName,
+    }: {
+      theme1: string;
+      theme2: string;
+      newThemeName: string;
+    }) => {
       // Find the themes to merge
       const theme1Data = themesData.filter((item) => item.theme === theme1);
       const theme2Data = themesData.filter((item) => item.theme === theme2);
@@ -415,7 +574,10 @@ export const useThemeHandlers = ({
 
         if (!theme1Obj || !theme2Obj) return prev;
 
-        const mergedCandidates = [...theme1Obj.candidateThemes, ...theme2Obj.candidateThemes];
+        const mergedCandidates = [
+          ...theme1Obj.candidateThemes,
+          ...theme2Obj.candidateThemes,
+        ];
 
         return [
           ...prev.filter((t: any) => t.name !== theme1 && t.name !== theme2),
@@ -446,10 +608,22 @@ export const useThemeHandlers = ({
 
   // Handle merging candidate themes
   const handleSuggestionMergeCandidates = useCallback(
-    async ({ candidate1, candidate2, newName, theme }: { candidate1: string; candidate2: string; newName: string; theme: string }) => {
+    async ({
+      candidate1,
+      candidate2,
+      newName,
+      theme,
+    }: {
+      candidate1: string;
+      candidate2: string;
+      newName: string;
+      theme: string;
+    }) => {
       // Update all cases with candidate1 or candidate2 to use newName
       const casesToUpdate = themesData.filter(
-        (item) => item.candidate_theme === candidate1 || item.candidate_theme === candidate2
+        (item) =>
+          item.candidate_theme === candidate1 ||
+          item.candidate_theme === candidate2
       );
 
       for (const caseItem of casesToUpdate) {
@@ -460,9 +634,17 @@ export const useThemeHandlers = ({
 
       // Update local state
       if (selectedLeftTheme === theme) {
-        setLeftCandidateThemes((prev) => prev.filter((ct) => ct !== candidate1 && ct !== candidate2).concat([newName]));
+        setLeftCandidateThemes((prev) =>
+          prev
+            .filter((ct) => ct !== candidate1 && ct !== candidate2)
+            .concat([newName])
+        );
       } else if (selectedRightTheme === theme) {
-        setRightCandidateThemes((prev) => prev.filter((ct) => ct !== candidate1 && ct !== candidate2).concat([newName]));
+        setRightCandidateThemes((prev) =>
+          prev
+            .filter((ct) => ct !== candidate1 && ct !== candidate2)
+            .concat([newName])
+        );
       }
 
       // Update allThemes
@@ -472,7 +654,9 @@ export const useThemeHandlers = ({
             ? {
                 ...t,
                 candidateThemes: t.candidateThemes
-                  .filter((ct: string) => ct !== candidate1 && ct !== candidate2)
+                  .filter(
+                    (ct: string) => ct !== candidate1 && ct !== candidate2
+                  )
                   .concat([newName]),
               }
             : t
